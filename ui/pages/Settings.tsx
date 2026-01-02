@@ -300,7 +300,32 @@ export function Settings() {
                                                                 value={settings.text_color}
                                                                 onChange={(val) => updateSetting('text_color', val)}
                                                                 autoComplete="off"
-                                                                suffix={<div style={{ width: '20px', height: '20px', background: settings.text_color, border: '1px solid #ccc', borderRadius: '4px' }} />}
+                                                                suffix={
+                                                                    <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                                                                        <input
+                                                                            type="color"
+                                                                            value={settings.text_color.length === 4 ? settings.text_color.replace(/#(.)(.)(.)/, '#$1$1$2$2$3$3') : settings.text_color}
+                                                                            onChange={(e) => updateSetting('text_color', e.target.value)}
+                                                                            style={{
+                                                                                position: 'absolute',
+                                                                                top: 0,
+                                                                                left: 0,
+                                                                                width: '100%',
+                                                                                height: '100%',
+                                                                                opacity: 0,
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                        />
+                                                                        <div style={{
+                                                                            width: '100%',
+                                                                            height: '100%',
+                                                                            background: settings.text_color,
+                                                                            border: '1px solid var(--p-color-border-subdued)',
+                                                                            borderRadius: '4px',
+                                                                            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                                                                        }} />
+                                                                    </div>
+                                                                }
                                                             />
                                                         </Box>
                                                         <Box width="45%">
@@ -310,7 +335,32 @@ export function Settings() {
                                                                 value={settings.text_outline_color}
                                                                 onChange={(val) => updateSetting('text_outline_color', val)}
                                                                 autoComplete="off"
-                                                                suffix={<div style={{ width: '20px', height: '20px', background: settings.text_outline_color, border: '1px solid #ccc', borderRadius: '4px' }} />}
+                                                                suffix={
+                                                                    <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                                                                        <input
+                                                                            type="color"
+                                                                            value={settings.text_outline_color.length === 4 ? settings.text_outline_color.replace(/#(.)(.)(.)/, '#$1$1$2$2$3$3') : settings.text_outline_color}
+                                                                            onChange={(e) => updateSetting('text_outline_color', e.target.value)}
+                                                                            style={{
+                                                                                position: 'absolute',
+                                                                                top: 0,
+                                                                                left: 0,
+                                                                                width: '100%',
+                                                                                height: '100%',
+                                                                                opacity: 0,
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                        />
+                                                                        <div style={{
+                                                                            width: '100%',
+                                                                            height: '100%',
+                                                                            background: settings.text_outline_color,
+                                                                            border: '1px solid var(--p-color-border-subdued)',
+                                                                            borderRadius: '4px',
+                                                                            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                                                                        }} />
+                                                                    </div>
+                                                                }
                                                             />
                                                         </Box>
                                                     </InlineStack>

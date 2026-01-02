@@ -101,7 +101,9 @@ export const GET_COLLECTIONS = `
         node {
           id
           title
-          productsCount
+          productsCount {
+            count
+          }
         }
       }
       pageInfo {
@@ -250,54 +252,54 @@ export const PRODUCT_REORDER_MEDIA = `
  * Build CreateMediaInput for productCreateMedia mutation
  */
 export function buildCreateMediaInput(originalMediaUrl, alt = '') {
-    return {
-        originalSource: originalMediaUrl,
-        alt: alt,
-        mediaContentType: 'IMAGE'
-    };
+  return {
+    originalSource: originalMediaUrl,
+    alt: alt,
+    mediaContentType: 'IMAGE'
+  };
 }
 
 /**
  * Build UpdateMediaInput for productUpdateMedia mutation
  */
 export function buildUpdateMediaInput(mediaId, updates) {
-    return {
-        id: mediaId,
-        ...updates
-    };
+  return {
+    id: mediaId,
+    ...updates
+  };
 }
 
 /**
  * Build MoveInput for productReorderMedia mutation
  */
 export function buildMoveInput(mediaId, newPosition) {
-    return {
-        id: mediaId,
-        newPosition: newPosition.toString()
-    };
+  return {
+    id: mediaId,
+    newPosition: newPosition.toString()
+  };
 }
 
 /**
  * Extract image URLs from product media response
  */
 export function extractImageUrls(productMediaResponse) {
-    if (!productMediaResponse?.product?.media?.edges) {
-        return [];
-    }
+  if (!productMediaResponse?.product?.media?.edges) {
+    return [];
+  }
 
-    return productMediaResponse.product.media.edges
-        .filter(edge => edge.node.mediaContentType === 'IMAGE')
-        .map(edge => ({
-            id: edge.node.id,
-            url: edge.node.image.url,
-            width: edge.node.image.width,
-            height: edge.node.image.height
-        }));
+  return productMediaResponse.product.media.edges
+    .filter(edge => edge.node.mediaContentType === 'IMAGE')
+    .map(edge => ({
+      id: edge.node.id,
+      url: edge.node.image.url,
+      width: edge.node.image.width,
+      height: edge.node.image.height
+    }));
 }
 
 /**
  * Check if product has featured media
  */
 export function getFeaturedMediaId(productMediaResponse) {
-    return productMediaResponse?.product?.featuredMedia?.id || null;
+  return productMediaResponse?.product?.featuredMedia?.id || null;
 }

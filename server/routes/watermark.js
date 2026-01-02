@@ -147,7 +147,7 @@ router.get('/shopify/collections', asyncHandler(async (req, res) => {
     const collections = response.data.collections.edges.map(edge => ({
         id: edge.node.id,
         title: edge.node.title,
-        count: edge.node.productsCount
+        count: edge.node.productsCount.count
     }));
 
     res.json({
