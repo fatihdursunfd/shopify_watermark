@@ -8,6 +8,8 @@ import { applyWatermark } from './watermark/imageEngine.js';
 import { shopify } from '../config/shopify-app.js';
 import {
     GET_PRODUCT_MEDIA,
+    GET_ALL_PRODUCTS,
+    GET_PRODUCTS_BY_COLLECTION,
     PRODUCT_CREATE_MEDIA,
     PRODUCT_REORDER_MEDIA,
     STAGED_UPLOADS_CREATE
@@ -21,19 +23,28 @@ import axios from 'axios';
 export const watermarkWorker = new Worker(
     QUEUE_NAMES.WATERMARK_APPLY,
     async (job) => {
-        const { jobId, shop, scopeType, scopeValue } = job.data;
+        const { jobId, shop } = job.data;
 
-        console.log(`[Worker] Starting job ${jobId} for ${shop} (Scope: ${scopeType})`);
-
-        // 1. Mark job as processing
-        await startJob(jobId);
+        console.log(`[Worker] Starting job ${jobId} for ${shop}`);
 
         try {
+            // 0. Fetch job to get snapshot and other details
+            const jobRecord = await getWatermarkJob(jobId);
+            if (!jobRecord) {
+                throw new Error(`Job ${jobId} not found in database`);
+            }
+
+            const { scope_type, scope_value, settings_snapshot } = jobRecord;
             const accessToken = await getShopToken(shop);
-            const settings = await getWatermarkSettings(shop);
+
+            // Use snapshot from job or fallback to current settings
+            const settings = settings_snapshot || await getWatermarkSettings(shop);
+
+            // 1. Mark job as processing
+            await startJob(jobId);
 
             // 2. Resolve products based on scope
-            const productIds = await resolveProductIds(shop, accessToken, scopeType, scopeValue);
+            const productIds = await resolveProductIds(shop, accessToken, scope_type, scope_value);
             console.log(`[Worker] Resolved ${productIds.length} products to process`);
 
             // 3. Process each product
@@ -159,12 +170,21 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
             }
         });
 
-        const target = stagedUploadRes.data.stagedUploadsCreate.stagedTargets[0];
+        const stagedData = stagedUploadRes.data.stagedUploadsCreate;
+        if (stagedData.userErrors.length > 0) {
+            throw new Error(`Staged Upload Error: ${stagedData.userErrors[0].message}`);
+        }
 
-        // Multipart upload
+        const target = stagedData.stagedTargets[0];
+
+        // Multipart upload using native-like FormData (Node 18+) or axios auto-handling
         const formData = new FormData();
         target.parameters.forEach(p => formData.append(p.name, p.value));
-        formData.append('file', new Blob([buffer]));
+
+        // Use a generic Blob if available, or just the buffer if axios supports it with the right headers
+        // Most stable for S3/Shopify:
+        const fileBlob = new Blob([buffer], { type: 'image/jpeg' });
+        formData.append('file', fileBlob, fileName);
 
         await axios.post(target.url, formData);
 
