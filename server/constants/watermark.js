@@ -154,9 +154,9 @@ export const PROCESSING_LIMITS = {
 // ============================================================================
 
 export const QUEUE_NAMES = {
-    WATERMARK_APPLY: 'watermark:apply',
-    WATERMARK_ROLLBACK: 'watermark:rollback',
-    WATERMARK_WEBHOOK: 'watermark:webhook'
+    WATERMARK_APPLY: 'watermark-apply',
+    WATERMARK_ROLLBACK: 'watermark-rollback',
+    WATERMARK_WEBHOOK: 'watermark-webhook'
 };
 
 // ============================================================================
