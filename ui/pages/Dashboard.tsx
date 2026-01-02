@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Page,
   Layout,
-  LegacyCard,
+  Card,
   Text,
   BlockStack,
   InlineStack,
@@ -16,7 +16,8 @@ import {
   Modal,
   RadioButton,
   Select,
-  List
+  List,
+  Spinner
 } from '@shopify/polaris';
 import {
   CheckCircleIcon,
@@ -143,7 +144,17 @@ export function Dashboard() {
   ]);
 
   if (loading && jobs.length === 0) {
-    return <Page title="Dashboard"><LegacyCard sectioned><Box padding="800" textAlign="center"><Spinner size="large" /></Box></LegacyCard></Page>;
+    return (
+      <Page title="Dashboard">
+        <Card padding="500">
+          <Box padding="800">
+            <InlineStack align="center">
+              <Spinner size="large" />
+            </InlineStack>
+          </Box>
+        </Card>
+      </Page>
+    );
   }
 
   return (
@@ -156,7 +167,7 @@ export function Dashboard() {
         </Layout.Section>
 
         <Layout.Section variant="oneThird">
-          <LegacyCard sectioned>
+          <Card padding="400">
             <BlockStack gap="200" align="center">
               <Text variant="headingXl" as="p">
                 {stats.activeJobs}
@@ -166,10 +177,10 @@ export function Dashboard() {
                 <Text variant="bodySm" as="span" tone="subdued">Active Jobs</Text>
               </InlineStack>
             </BlockStack>
-          </LegacyCard>
+          </Card>
         </Layout.Section>
         <Layout.Section variant="oneThird">
-          <LegacyCard sectioned>
+          <Card padding="400">
             <BlockStack gap="200" align="center">
               <Text variant="headingXl" as="p">
                 {stats.totalProcessed}
@@ -179,10 +190,10 @@ export function Dashboard() {
                 <Text variant="bodySm" as="span" tone="subdued">Protected Media</Text>
               </InlineStack>
             </BlockStack>
-          </LegacyCard>
+          </Card>
         </Layout.Section>
         <Layout.Section variant="oneThird">
-          <LegacyCard sectioned>
+          <Card padding="400">
             <BlockStack gap="200" align="center">
               <Text variant="headingXl" as="p" tone={stats.failedJobs > 0 ? 'critical' : 'subdued'}>
                 {stats.failedJobs}
@@ -192,13 +203,13 @@ export function Dashboard() {
                 <Text variant="bodySm" as="span" tone="subdued">Errors</Text>
               </InlineStack>
             </BlockStack>
-          </LegacyCard>
+          </Card>
         </Layout.Section>
 
         <Layout.Section>
           <InlineStack gap="400" wrap={false}>
             <Box width="50%">
-              <LegacyCard sectioned>
+              <Card padding="500">
                 <EmptyState
                   heading="Watermark Studio"
                   action={{
@@ -210,10 +221,10 @@ export function Dashboard() {
                 >
                   <p>Change your watermark design, position, and transparency.</p>
                 </EmptyState>
-              </LegacyCard>
+              </Card>
             </Box>
             <Box width="50%">
-              <LegacyCard sectioned>
+              <Card padding="500">
                 <EmptyState
                   heading="Apply to Products"
                   action={{
@@ -225,28 +236,31 @@ export function Dashboard() {
                 >
                   <p>Start a new watermark application on your selected products.</p>
                 </EmptyState>
-              </LegacyCard>
+              </Card>
             </Box>
           </InlineStack>
         </Layout.Section>
 
         <Layout.Section>
-          <LegacyCard title="Activity Feed" sectioned>
-            {jobs.length > 0 ? (
-              <DataTable
-                columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text']}
-                headings={['Job ID', 'Type', 'Status', 'Progress', 'Date', 'Actions']}
-                rows={rows as any}
-              />
-            ) : (
-              <EmptyState
-                heading="No activity yet"
-                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-              >
-                <p>Configure your studio and start your first bulk protection.</p>
-              </EmptyState>
-            )}
-          </LegacyCard>
+          <Card padding="500">
+            <BlockStack gap="400">
+              <Text variant="headingMd" as="h2">Activity Feed</Text>
+              {jobs.length > 0 ? (
+                <DataTable
+                  columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text']}
+                  headings={['Job ID', 'Type', 'Status', 'Progress', 'Date', 'Actions']}
+                  rows={rows as any}
+                />
+              ) : (
+                <EmptyState
+                  heading="No activity yet"
+                  image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                >
+                  <p>Configure your studio and start your first bulk protection.</p>
+                </EmptyState>
+              )}
+            </BlockStack>
+          </Card>
         </Layout.Section>
       </Layout>
 

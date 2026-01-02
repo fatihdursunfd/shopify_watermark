@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import {
     Page,
     Layout,
-    LegacyCard,
+    Card,
     FormLayout,
     TextField,
     Select,
@@ -143,14 +143,14 @@ export function Settings() {
             <Page title="Watermark Studio">
                 <Layout>
                     <Layout.Section variant="oneHalf">
-                        <LegacyCard sectioned>
+                        <Card padding="500">
                             <SkeletonBodyText lines={10} />
-                        </LegacyCard>
+                        </Card>
                     </Layout.Section>
                     <Layout.Section variant="oneHalf">
-                        <LegacyCard sectioned>
+                        <Card padding="500">
                             <SkeletonBodyText lines={10} />
-                        </LegacyCard>
+                        </Card>
                     </Layout.Section>
                 </Layout>
             </Page>
@@ -173,7 +173,7 @@ export function Settings() {
                 <Layout.Section variant="oneHalf">
                     <BlockStack gap="400">
                         {/* Logo Settings */}
-                        <LegacyCard sectioned>
+                        <Card padding="500">
                             <BlockStack gap="400">
                                 <InlineStack gap="200" align="start">
                                     <Icon source={ImageIcon} />
@@ -230,10 +230,10 @@ export function Settings() {
                                     )}
                                 </FormLayout>
                             </BlockStack>
-                        </LegacyCard>
+                        </Card>
 
                         {/* Text Settings */}
-                        <LegacyCard sectioned>
+                        <Card padding="500">
                             <BlockStack gap="400">
                                 <InlineStack gap="200" align="start">
                                     <Icon source={TextIcon} />
@@ -293,10 +293,10 @@ export function Settings() {
                                     )}
                                 </FormLayout>
                             </BlockStack>
-                        </LegacyCard>
+                        </Card>
 
                         {/* Mobile Settings */}
-                        <LegacyCard sectioned>
+                        <Card padding="500">
                             <BlockStack gap="400">
                                 <InlineStack gap="200" align="start">
                                     <Icon source={MobileIcon} />
@@ -331,14 +331,14 @@ export function Settings() {
                                     )}
                                 </FormLayout>
                             </BlockStack>
-                        </LegacyCard>
+                        </Card>
                     </BlockStack>
                 </Layout.Section>
 
                 {/* Right Side: Virtual Preview */}
                 <Layout.Section variant="oneHalf">
-                    <LegacyCard
-                        sectioned
+                    <Card
+                        padding="500"
                     >
                         <BlockStack gap="400">
                             <InlineStack align="space-between">
@@ -399,7 +399,7 @@ export function Settings() {
                                 <p>Preview uses unsaved settings. Don't forget to <b>Save Settings</b> before applying to your actual catalog.</p>
                             </Banner>
                         </BlockStack>
-                    </LegacyCard>
+                    </Card>
                 </Layout.Section>
             </Layout>
         </Page>
