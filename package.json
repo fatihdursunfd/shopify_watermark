@@ -1,0 +1,23 @@
+{
+  "name": "shopify-base-app",
+  "version": "1.0.0",
+  "description": "Shopify Import/Export Application",
+  "type": "module",
+  "scripts": {
+    "install-server": "cd server && npm install --include=dev",
+    "install-ui": "cd ui && npm install --include=dev",
+    "build": "npm run install-server && npm run install-ui && cd ui && npm run build",
+    "start": "cd server && npm start"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "shopify",
+    "app",
+    "import",
+    "export"
+  ],
+  "author": "",
+  "license": "MIT"
+}
