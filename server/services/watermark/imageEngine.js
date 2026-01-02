@@ -5,7 +5,7 @@ import {
     IMAGE_LIMITS,
     getPositionCoordinates,
     shouldUseMobileProfile
-} from '../constants/watermark.js';
+} from '../../constants/watermark.js';
 
 /**
  * Download image from URL

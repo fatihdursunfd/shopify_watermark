@@ -1,5 +1,5 @@
 client_id = "7c8d4119f2fb1ee80cf6150b61b7c503"
-name = "base-app"
+name = "watermark"
 application_url = "https://shopify-watermark.onrender.com"
 embedded = true
 
