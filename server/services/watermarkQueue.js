@@ -65,3 +65,21 @@ export async function cancelJob(jobId) {
         throw error;
     }
 }
+/**
+ * Add a new watermark rollback job to the queue
+ */
+export async function addRollbackJob(jobId, shop, targetJobId) {
+    try {
+        const job = await watermarkRollbackQueue.add(
+            `rollback:${shop}:${jobId}`,
+            { jobId, shop, targetJobId },
+            { jobId }
+        );
+
+        console.log(`[Queue] Added job ${jobId} to watermark:rollback queue (Queue ID: ${job.id})`);
+        return job;
+    } catch (error) {
+        console.error('[Queue] Error adding rollback job to queue:', error.message);
+        throw error;
+    }
+}
