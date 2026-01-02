@@ -79,16 +79,27 @@ function generateTextSVG(text, font, size, color, outlineColor, outline, resFact
     const textWidth = Math.ceil(text.length * size * 1.0); // Increased multiplier
     const textHeight = Math.ceil(size * 1.6); // Increased multiplier
 
-    let svg = `<svg width="${textWidth}" height="${textHeight}" viewBox="0 0 ${textWidth} ${textHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    // SVG text with rotation support
+    // Increase canvas even more if rotated to avoid clipping the corners
+    const rotation = settings?.text_rotation || 0;
+    const isRotated = rotation !== 0;
+
+    // For rotated text, we need a larger canvas to fit the diagonal
+    const canvasWidth = isRotated ? Math.ceil(textWidth * 1.5) : textWidth;
+    const canvasHeight = isRotated ? Math.ceil(textHeight * 1.5 + textWidth * Math.abs(Math.sin(rotation * Math.PI / 180))) : textHeight;
+
+    let svg = `<svg width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}" xmlns="http://www.w3.org/2000/svg">`;
+
+    const transform = isRotated ? ` transform="rotate(${rotation}, ${canvasWidth / 2}, ${canvasHeight / 2})"` : '';
 
     if (outline) {
         // Outline/stroke with a bit more thickness for high contrast, scaled by resFactor
         const strokeWidth = Math.max(2, Math.floor(4 * resFactor));
-        svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="none" stroke="${outlineColor}" stroke-width="${strokeWidth}" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${escapedText}</text>`;
+        svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="none" stroke="${outlineColor}" stroke-width="${strokeWidth}" text-anchor="middle" dominant-baseline="middle" font-weight="bold"${transform}>${escapedText}</text>`;
     }
 
     // Main text
-    svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="${color}" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${escapedText}</text>`;
+    svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="${color}" text-anchor="middle" dominant-baseline="middle" font-weight="bold"${transform}>${escapedText}</text>`;
     svg += `</svg>`;
 
     return Buffer.from(svg);
@@ -116,13 +127,19 @@ export async function applyLogoWatermark(imageBuffer, settings, metadata) {
         const watermarkWidth = Math.floor(metadata.width * scale);
         const watermarkHeight = Math.floor((logoMetadata.height / logoMetadata.width) * watermarkWidth);
 
-        // Resize logo
+        // Resize and Rotate logo
         let watermarkBuffer = await sharp(logoBuffer)
             .resize(watermarkWidth, watermarkHeight, {
                 fit: 'inside',
                 withoutEnlargement: true
             })
+            .rotate(settings.logo_rotation || 0, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
             .toBuffer();
+
+        // Load rotated dimensions
+        const rotatedMetadata = await sharp(watermarkBuffer).metadata();
+        const finalWidth = rotatedMetadata.width;
+        const finalHeight = rotatedMetadata.height;
 
         // Apply opacity if needed
         if (opacity < 1.0) {
@@ -150,8 +167,8 @@ export async function applyLogoWatermark(imageBuffer, settings, metadata) {
             position,
             metadata.width,
             metadata.height,
-            watermarkWidth,
-            watermarkHeight,
+            finalWidth,
+            finalHeight,
             scaledMargin
         );
 
@@ -198,7 +215,8 @@ export async function applyTextWatermark(imageBuffer, settings, metadata) {
             settings.text_color,
             settings.text_outline_color,
             settings.text_outline,
-            resFactor
+            resFactor,
+            settings
         );
 
         // Convert SVG to PNG

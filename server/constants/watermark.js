@@ -102,6 +102,7 @@ export const WATERMARK_DEFAULTS = {
     LOGO_OPACITY: 0.8,
     LOGO_MARGIN: 20,
     LOGO_SCALE: 0.2,
+    LOGO_ROTATION: 0,
 
     // Text defaults
     TEXT_FONT: 'Arial',
@@ -111,6 +112,7 @@ export const WATERMARK_DEFAULTS = {
     TEXT_OPACITY: 0.8,
     TEXT_OUTLINE: true,
     TEXT_OUTLINE_COLOR: '#000000',
+    TEXT_ROTATION: 0,
 
     // Mobile defaults
     MOBILE_ENABLED: false,

@@ -118,6 +118,74 @@ router.get('/assets', asyncHandler(async (req, res) => {
 }));
 
 /**
+ * POST /api/watermark/assets/staged-url
+ * Get staged upload URL for Shopify
+ */
+router.post('/assets/staged-url', asyncHandler(async (req, res) => {
+    const { session } = res.locals.shopify;
+    const { filename, mimeType } = req.body;
+
+    const client = new shopify.api.clients.Graphql({ session });
+    const response = await client.request(STAGED_UPLOADS_CREATE, {
+        variables: {
+            input: [{
+                filename,
+                mimeType,
+                resource: 'IMAGE',
+                httpMethod: 'POST'
+            }]
+        }
+    });
+
+    res.json({
+        success: true,
+        target: response.data.stagedUploadsCreate.stagedTargets[0]
+    });
+}));
+
+/**
+ * POST /api/watermark/assets/register
+ * Register uploaded file in Shopify and save to DB
+ */
+router.post('/assets/register', asyncHandler(async (req, res) => {
+    const { session } = res.locals.shopify;
+    const { resourceUrl, filename, mimeType, fileSize } = req.body;
+
+    const client = new shopify.api.clients.Graphql({ session });
+
+    // 1. Create file in Shopify
+    const fileCreateRes = await client.request(FILE_CREATE, {
+        variables: {
+            files: [{
+                originalSource: resourceUrl,
+                contentType: 'IMAGE',
+                alt: filename
+            }]
+        }
+    });
+
+    const fileData = fileCreateRes.data.fileCreate.files[0];
+    const shopifyFileId = fileData.id;
+    // For images, URL is in image.url
+    const publicUrl = fileData.image?.url || fileData.url;
+
+    // 2. Save to our database
+    const asset = await createWatermarkAsset(
+        session.shop,
+        filename,
+        publicUrl,
+        fileSize || 0,
+        mimeType,
+        shopifyFileId
+    );
+
+    res.json({
+        success: true,
+        asset
+    });
+}));
+
+/**
  * DELETE /api/watermark/assets/:id
  * Delete a watermark asset
  */

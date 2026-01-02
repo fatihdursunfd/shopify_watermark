@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS watermark_settings (
     logo_opacity DECIMAL(3,2) DEFAULT 0.8,
     logo_margin INTEGER DEFAULT 20,
     logo_scale DECIMAL(3,2) DEFAULT 0.2,
+    logo_rotation INTEGER DEFAULT 0,
     
     -- Text settings
     text_content TEXT,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS watermark_settings (
     text_opacity DECIMAL(3,2) DEFAULT 0.8,
     text_outline BOOLEAN DEFAULT true,
     text_outline_color VARCHAR(7) DEFAULT '#000000',
+    text_rotation INTEGER DEFAULT 0,
     
     -- Mobile profile
     mobile_enabled BOOLEAN DEFAULT false,
@@ -148,18 +150,19 @@ SELECT * FROM watermark_settings WHERE shop = $1;
 `;
 
 export const UPSERT_SETTINGS = `
-INSERT INTO watermark_settings (
-    shop, logo_url, logo_position, logo_opacity, logo_margin, logo_scale,
-    text_content, text_font, text_size, text_color, text_position, 
-    text_opacity, text_outline, text_outline_color,
+INSERT INTO watermark_settings(
+    shop, logo_url, logo_position, logo_opacity, logo_margin, logo_scale, logo_rotation,
+    text_content, text_font, text_size, text_color, text_position,
+    text_opacity, text_outline, text_outline_color, text_rotation,
     mobile_enabled, mobile_position, mobile_scale, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
-ON CONFLICT (shop) DO UPDATE SET
-    logo_url = EXCLUDED.logo_url,
+) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP)
+ON CONFLICT(shop) DO UPDATE SET
+logo_url = EXCLUDED.logo_url,
     logo_position = EXCLUDED.logo_position,
     logo_opacity = EXCLUDED.logo_opacity,
     logo_margin = EXCLUDED.logo_margin,
     logo_scale = EXCLUDED.logo_scale,
+    logo_rotation = EXCLUDED.logo_rotation,
     text_content = EXCLUDED.text_content,
     text_font = EXCLUDED.text_font,
     text_size = EXCLUDED.text_size,
@@ -168,6 +171,7 @@ ON CONFLICT (shop) DO UPDATE SET
     text_opacity = EXCLUDED.text_opacity,
     text_outline = EXCLUDED.text_outline,
     text_outline_color = EXCLUDED.text_outline_color,
+    text_rotation = EXCLUDED.text_rotation,
     mobile_enabled = EXCLUDED.mobile_enabled,
     mobile_position = EXCLUDED.mobile_position,
     mobile_scale = EXCLUDED.mobile_scale,

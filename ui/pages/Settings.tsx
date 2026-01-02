@@ -19,7 +19,9 @@ import {
     Text,
     ButtonGroup,
     Button,
-    Spinner
+    Spinner,
+    DropZone,
+    Thumbnail
 } from '@shopify/polaris';
 import {
     PlusIcon,
@@ -58,6 +60,7 @@ export function Settings() {
     const api = useApi();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [previewLoading, setPreviewLoading] = useState(false);
     const [settings, setSettings] = useState<WatermarkSettings>({
         logo_url: null,
@@ -139,6 +142,43 @@ export function Settings() {
         setSettings(prev => ({ ...prev, [key]: value }));
     };
 
+    const handleDrop = useCallback(async (_droppedFiles: File[], acceptedFiles: File[], _rejectedFiles: File[]) => {
+        if (acceptedFiles.length > 0) {
+            setUploading(true);
+            const file = acceptedFiles[0];
+            try {
+                // 1. Get staged URL from our backend
+                const { target } = await api.getStagedUploadUrl(file.name, file.type);
+
+                // 2. Upload directly to Shopify's staged storage (usually S3)
+                const formData = new FormData();
+                target.parameters.forEach((p: any) => formData.append(p.name, p.value));
+                formData.append('file', file);
+
+                await fetch(target.url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // 3. Register the file in Shopify and save record in our DB
+                const { asset } = await api.registerAsset({
+                    resourceUrl: target.resourceUrl,
+                    filename: file.name,
+                    mimeType: file.type,
+                    fileSize: file.size
+                });
+
+                // 4. Update the logo_url setting
+                updateSetting('logo_url', asset.file_url);
+
+            } catch (error) {
+                console.error('Upload failed:', error);
+            } finally {
+                setUploading(false);
+            }
+        }
+    }, [api, updateSetting]);
+
     if (loading) {
         return (
             <Page title="Watermark Studio">
@@ -189,14 +229,39 @@ export function Settings() {
                                     </InlineStack>
 
                                     <FormLayout>
-                                        <TextField
-                                            label="Brand Logo URL"
-                                            value={settings.logo_url || ''}
-                                            onChange={(val) => updateSetting('logo_url', val)}
-                                            autoComplete="off"
-                                            placeholder="https://your-domain.com/logo.png"
-                                            helpText="Supports PNG, SVG, and JPEG. Transparent PNG/SVG is recommended."
-                                        />
+                                        <BlockStack gap="300">
+                                            <TextField
+                                                label="Brand Logo URL"
+                                                value={settings.logo_url || ''}
+                                                onChange={(val) => updateSetting('logo_url', val)}
+                                                autoComplete="off"
+                                                placeholder="https://your-domain.com/logo.png"
+                                                helpText="Supports PNG, SVG, and JPEG. Transparent PNG/SVG is recommended."
+                                            />
+
+                                            <div style={{ marginTop: '10px' }}>
+                                                <DropZone
+                                                    onDrop={handleDrop}
+                                                    label="Or Upload Logo"
+                                                    accept="image/*"
+                                                    type="image"
+                                                    disabled={uploading}
+                                                >
+                                                    {uploading ? (
+                                                        <div style={{ padding: '20px', textAlign: 'center' }}>
+                                                            <BlockStack gap="200" align="center">
+                                                                <Spinner size="small" />
+                                                                <Text as="p">Uploading logo...</Text>
+                                                            </BlockStack>
+                                                        </div>
+                                                    ) : settings.logo_url ? (
+                                                        <DropZone.FileUpload actionHint="Replace logo" />
+                                                    ) : (
+                                                        <DropZone.FileUpload actionTitle="Add logo" />
+                                                    )}
+                                                </DropZone>
+                                            </div>
+                                        </BlockStack>
 
                                         {settings.logo_url && (
                                             <Box padding="300" background="bg-surface-secondary" borderRadius="200">
@@ -223,6 +288,15 @@ export function Settings() {
                                                         max={1.0}
                                                         step={0.1}
                                                         onChange={(val) => updateSetting('logo_opacity', val)}
+                                                        output
+                                                    />
+                                                    <RangeSlider
+                                                        label={`Rotation: ${settings.logo_rotation}°`}
+                                                        value={settings.logo_rotation}
+                                                        min={-180}
+                                                        max={180}
+                                                        step={1}
+                                                        onChange={(val) => updateSetting('logo_rotation', val)}
                                                         output
                                                     />
                                                     <TextField
@@ -290,6 +364,15 @@ export function Settings() {
                                                         max={1.0}
                                                         step={0.1}
                                                         onChange={(val) => updateSetting('text_opacity', val)}
+                                                        output
+                                                    />
+                                                    <RangeSlider
+                                                        label={`Text Rotation: ${settings.text_rotation}°`}
+                                                        value={settings.text_rotation}
+                                                        min={-180}
+                                                        max={180}
+                                                        step={1}
+                                                        onChange={(val) => updateSetting('text_rotation', val)}
                                                         output
                                                     />
                                                     <InlineStack gap="400">

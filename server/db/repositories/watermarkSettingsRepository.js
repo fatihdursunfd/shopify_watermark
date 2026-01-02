@@ -51,6 +51,7 @@ export async function upsertWatermarkSettings(shop, settings) {
             settings.logo_opacity ?? WATERMARK_DEFAULTS.LOGO_OPACITY,
             settings.logo_margin ?? WATERMARK_DEFAULTS.LOGO_MARGIN,
             settings.logo_scale ?? WATERMARK_DEFAULTS.LOGO_SCALE,
+            settings.logo_rotation ?? WATERMARK_DEFAULTS.LOGO_ROTATION,
             settings.text_content || null,
             settings.text_font || WATERMARK_DEFAULTS.TEXT_FONT,
             settings.text_size ?? WATERMARK_DEFAULTS.TEXT_SIZE,
@@ -59,6 +60,7 @@ export async function upsertWatermarkSettings(shop, settings) {
             settings.text_opacity ?? WATERMARK_DEFAULTS.TEXT_OPACITY,
             settings.text_outline ?? WATERMARK_DEFAULTS.TEXT_OUTLINE,
             settings.text_outline_color || WATERMARK_DEFAULTS.TEXT_OUTLINE_COLOR,
+            settings.text_rotation ?? WATERMARK_DEFAULTS.TEXT_ROTATION,
             settings.mobile_enabled ?? WATERMARK_DEFAULTS.MOBILE_ENABLED,
             settings.mobile_position || WATERMARK_DEFAULTS.MOBILE_POSITION,
             settings.mobile_scale ?? WATERMARK_DEFAULTS.MOBILE_SCALE
@@ -83,6 +85,7 @@ function getDefaultSettings(shop) {
         logo_opacity: WATERMARK_DEFAULTS.LOGO_OPACITY,
         logo_margin: WATERMARK_DEFAULTS.LOGO_MARGIN,
         logo_scale: WATERMARK_DEFAULTS.LOGO_SCALE,
+        logo_rotation: WATERMARK_DEFAULTS.LOGO_ROTATION,
         text_content: null,
         text_font: WATERMARK_DEFAULTS.TEXT_FONT,
         text_size: WATERMARK_DEFAULTS.TEXT_SIZE,
@@ -91,6 +94,7 @@ function getDefaultSettings(shop) {
         text_opacity: WATERMARK_DEFAULTS.TEXT_OPACITY,
         text_outline: WATERMARK_DEFAULTS.TEXT_OUTLINE,
         text_outline_color: WATERMARK_DEFAULTS.TEXT_OUTLINE_COLOR,
+        text_rotation: WATERMARK_DEFAULTS.TEXT_ROTATION,
         mobile_enabled: WATERMARK_DEFAULTS.MOBILE_ENABLED,
         mobile_position: WATERMARK_DEFAULTS.MOBILE_POSITION,
         mobile_scale: WATERMARK_DEFAULTS.MOBILE_SCALE

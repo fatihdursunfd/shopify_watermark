@@ -101,6 +101,20 @@ export function useApi() {
              */
             getCollections: () => jsonRequest<{ success: boolean; collections: any[] }>('/api/watermark/shopify/collections'),
 
+            getStagedUploadUrl: (filename: string, mimeType: string) =>
+                jsonRequest<{ success: boolean; target: any }>('/api/watermark/assets/staged-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, mimeType })
+                }),
+
+            registerAsset: (data: { resourceUrl: string, filename: string, mimeType: string, fileSize: number }) =>
+                jsonRequest<{ success: boolean; asset: any }>('/api/watermark/assets/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                }),
+
             getBillingInfo: (sync = false) =>
                 jsonRequest<BillingInfo>(`/api/billing/info${sync ? '?sync=1' : ''}`)
         };
