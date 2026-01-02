@@ -1,6 +1,6 @@
-client_id = "a64d39b251fbf913292da4235c7c94f7"
+client_id = "7c8d4119f2fb1ee80cf6150b61b7c503"
 name = "base-app"
-application_url = "https://shopify-base-app.onrender.com"
+application_url = "https://shopify-watermark.onrender.com"
 embedded = true
 
 [webhooks]
@@ -18,5 +18,5 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://shopify-base-app.onrender.com/auth/callback"
+  "https://shopify-watermark.onrender.com/auth/callback"
 ]
