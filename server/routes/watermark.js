@@ -314,6 +314,7 @@ router.post('/jobs/:id/cancel', asyncHandler(async (req, res) => {
  * Initiate rollback for a completed job
  */
 router.post('/jobs/:id/rollback', asyncHandler(async (req, res) => {
+    const { session } = res.locals.shopify;
     const { id } = req.params;
 
     const job = await getWatermarkJob(id);

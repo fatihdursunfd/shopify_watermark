@@ -63,7 +63,7 @@ export async function validateImage(buffer) {
 /**
  * Generate SVG text for text watermark
  */
-function generateTextSVG(text, font, size, color, outlineColor, outline) {
+function generateTextSVG(text, font, size, color, outlineColor, outline, resFactor = 1) {
     const escapedText = text.replace(/[<>&'"]/g, (c) => {
         switch (c) {
             case '<': return '&lt;';
@@ -82,8 +82,9 @@ function generateTextSVG(text, font, size, color, outlineColor, outline) {
     let svg = `<svg width="${textWidth}" height="${textHeight}" viewBox="0 0 ${textWidth} ${textHeight}" xmlns="http://www.w3.org/2000/svg">`;
 
     if (outline) {
-        // Outline/stroke with a bit more thickness for high contrast
-        svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="none" stroke="${outlineColor}" stroke-width="4" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${escapedText}</text>`;
+        // Outline/stroke with a bit more thickness for high contrast, scaled by resFactor
+        const strokeWidth = Math.max(2, Math.floor(4 * resFactor));
+        svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="none" stroke="${outlineColor}" stroke-width="${strokeWidth}" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${escapedText}</text>`;
     }
 
     // Main text
@@ -139,6 +140,11 @@ export async function applyLogoWatermark(imageBuffer, settings, metadata) {
                 .toBuffer();
         }
 
+        // Base resolution for scaling (matches preview maxWidth)
+        const baseRes = 800;
+        const resFactor = metadata.width / baseRes;
+        const scaledMargin = Math.floor(margin * resFactor);
+
         // Calculate position
         const coords = getPositionCoordinates(
             position,
@@ -146,7 +152,7 @@ export async function applyLogoWatermark(imageBuffer, settings, metadata) {
             metadata.height,
             watermarkWidth,
             watermarkHeight,
-            margin
+            scaledMargin
         );
 
         // Composite watermark onto image
@@ -178,14 +184,21 @@ export async function applyTextWatermark(imageBuffer, settings, metadata) {
         const margin = 20; // Fixed margin for text
         const opacity = settings.text_opacity;
 
+        // Base resolution for scaling (matches preview maxWidth)
+        const baseRes = 800;
+        const resFactor = metadata.width / baseRes;
+        const scaledSize = Math.floor(settings.text_size * scale * resFactor);
+        const scaledMargin = Math.floor(margin * resFactor);
+
         // Generate SVG text
         const textSVG = generateTextSVG(
             settings.text_content,
             settings.text_font,
-            Math.floor(settings.text_size * scale),
+            scaledSize,
             settings.text_color,
             settings.text_outline_color,
-            settings.text_outline
+            settings.text_outline,
+            resFactor
         );
 
         // Convert SVG to PNG
@@ -219,7 +232,7 @@ export async function applyTextWatermark(imageBuffer, settings, metadata) {
             metadata.height,
             watermarkMetadata.width,
             watermarkMetadata.height,
-            margin
+            scaledMargin
         );
 
         // Composite watermark onto image
