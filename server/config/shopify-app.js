@@ -2,6 +2,7 @@ import { shopifyApp } from "@shopify/shopify-app-express";
 import { ApiVersion } from "@shopify/shopify-api";
 import { PostgresSessionStorage } from "../db/session-storage.js";
 import { upsertShopSubscription, getShopSubscription } from "../db/repositories/subscriptionRepository.js";
+import { saveShopToken } from "../db/repositories/shopRepository.js";
 import { SUBSCRIPTION_PLANS, SUBSCRIPTION_STATUS } from "../constants/index.js";
 
 const sessionStorage = new PostgresSessionStorage();
@@ -33,6 +34,11 @@ export const shopify = shopifyApp({
         afterAuth: async ({ session }) => {
             try {
                 console.log(`[Auth] 🟢 Initializing/Updating session for ${session.shop}`);
+
+                // Save token for background workers
+                if (session.accessToken) {
+                    await saveShopToken(session.shop, session.accessToken);
+                }
 
                 const existing = await getShopSubscription(session.shop);
                 if (!existing || existing.plan_type === SUBSCRIPTION_PLANS.FREE) {
