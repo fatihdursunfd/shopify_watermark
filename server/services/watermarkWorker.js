@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis.js';
-import { QUEUE_NAMES, JOB_STATUS, JOB_ITEM_STATUS } from '../constants/watermark.js';
+import { QUEUE_NAMES, JOB_STATUS, JOB_ITEM_STATUS, SCOPE_TYPE } from '../constants/watermark.js';
 import { startJob, completeJob, incrementProcessedProducts, incrementFailedProducts } from '../db/repositories/watermarkJobsRepository.js';
 import { createJobItem, markJobItemCompleted, markJobItemFailed } from '../db/repositories/watermarkJobItemsRepository.js';
 import { getWatermarkSettings } from '../db/repositories/watermarkSettingsRepository.js';
