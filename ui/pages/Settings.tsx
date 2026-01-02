@@ -18,7 +18,8 @@ import {
     ProgressBar,
     Text,
     ButtonGroup,
-    Button
+    Button,
+    Spinner
 } from '@shopify/polaris';
 import {
     PlusIcon,
@@ -159,249 +160,270 @@ export function Settings() {
 
     return (
         <Page
-            title="Watermark Studio"
-            subtitle="Design and preview your custom watermark before applying to products."
+            fullWidth
+            backAction={{ content: 'Dashboard', onAction: () => window.history.back() }}
+            title="Design Studio"
             primaryAction={{
-                content: 'Save Settings',
+                content: 'Save Changes',
                 onAction: handleSave,
                 loading: saving,
                 icon: SaveIcon
             }}
         >
-            <Layout>
-                {/* Left Side: Controls */}
-                <Layout.Section variant="oneHalf">
-                    <BlockStack gap="400">
-                        {/* Logo Settings */}
-                        <Card padding="500">
-                            <BlockStack gap="400">
-                                <InlineStack gap="200" align="start">
-                                    <Icon source={ImageIcon} />
-                                    <Text variant="headingMd" as="h2">Logo Branding</Text>
-                                </InlineStack>
-                                <FormLayout>
-                                    <TextField
-                                        label="Logo URL"
-                                        value={settings.logo_url || ''}
-                                        onChange={(val) => updateSetting('logo_url', val)}
-                                        autoComplete="off"
-                                        helpText="Enter the URL of your logo image (PNG/SVG recommended for transparency)."
-                                    />
+            <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+                <Layout>
+                    {/* Left: Configuration */}
+                    <Layout.Section variant="oneHalf">
+                        <BlockStack gap="500">
+                            {/* Logo Section */}
+                            <Card padding="500">
+                                <BlockStack gap="400">
+                                    <InlineStack align="space-between">
+                                        <InlineStack gap="200">
+                                            <div className="icon-circle" style={{ width: '32px', height: '32px' }}>
+                                                <Icon source={ImageIcon} tone="base" />
+                                            </div>
+                                            <Text variant="headingMd" as="h2">Identity & Branding</Text>
+                                        </InlineStack>
+                                        {settings.logo_url && <Badge tone="success">Logo Active</Badge>}
+                                    </InlineStack>
 
-                                    {settings.logo_url && (
-                                        <FormLayout.Group>
-                                            <Select
-                                                label="Logo Position"
-                                                options={POSITION_OPTIONS}
-                                                value={settings.logo_position}
-                                                onChange={(val) => updateSetting('logo_position', val)}
-                                            />
-                                            <RangeSlider
-                                                label={`Logo Scale: ${Math.round(settings.logo_scale * 100)}%`}
-                                                value={settings.logo_scale}
-                                                min={0.05}
-                                                max={0.5}
-                                                step={0.01}
-                                                onChange={(val) => updateSetting('logo_scale', val)}
-                                                output
-                                            />
-                                        </FormLayout.Group>
-                                    )}
+                                    <FormLayout>
+                                        <TextField
+                                            label="Brand Logo URL"
+                                            value={settings.logo_url || ''}
+                                            onChange={(val) => updateSetting('logo_url', val)}
+                                            autoComplete="off"
+                                            placeholder="https://your-domain.com/logo.png"
+                                            helpText="Supports PNG, SVG, and JPEG. Transparent PNG/SVG is recommended."
+                                        />
 
-                                    {settings.logo_url && (
-                                        <FormLayout.Group>
-                                            <RangeSlider
-                                                label={`Logo Opacity: ${Math.round(settings.logo_opacity * 100)}%`}
-                                                value={settings.logo_opacity}
-                                                min={0.1}
-                                                max={1.0}
-                                                step={0.1}
-                                                onChange={(val) => updateSetting('logo_opacity', val)}
-                                                output
-                                            />
-                                            <TextField
-                                                label="Logo Margin (px)"
-                                                type="number"
-                                                value={settings.logo_margin.toString()}
-                                                onChange={(val) => updateSetting('logo_margin', parseInt(val) || 0)}
-                                                autoComplete="off"
-                                            />
-                                        </FormLayout.Group>
-                                    )}
-                                </FormLayout>
-                            </BlockStack>
-                        </Card>
+                                        {settings.logo_url && (
+                                            <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                                                <FormLayout.Group>
+                                                    <Select
+                                                        label="Logo Placement"
+                                                        options={POSITION_OPTIONS}
+                                                        value={settings.logo_position}
+                                                        onChange={(val) => updateSetting('logo_position', val)}
+                                                    />
+                                                    <RangeSlider
+                                                        label={`Scale: ${Math.round(settings.logo_scale * 100)}%`}
+                                                        value={settings.logo_scale}
+                                                        min={0.05}
+                                                        max={0.5}
+                                                        step={0.01}
+                                                        onChange={(val) => updateSetting('logo_scale', val)}
+                                                        output
+                                                    />
+                                                </FormLayout.Group>
+                                                <FormLayout.Group>
+                                                    <RangeSlider
+                                                        label={`Visual Opacity: ${Math.round(settings.logo_opacity * 100)}%`}
+                                                        value={settings.logo_opacity}
+                                                        min={0.1}
+                                                        max={1.0}
+                                                        step={0.1}
+                                                        onChange={(val) => updateSetting('logo_opacity', val)}
+                                                        output
+                                                    />
+                                                    <TextField
+                                                        label="Margin Offset (px)"
+                                                        type="number"
+                                                        value={settings.logo_margin.toString()}
+                                                        onChange={(val) => updateSetting('logo_margin', parseInt(val) || 0)}
+                                                        autoComplete="off"
+                                                    />
+                                                </FormLayout.Group>
+                                            </Box>
+                                        )}
+                                    </FormLayout>
+                                </BlockStack>
+                            </Card>
 
-                        {/* Text Settings */}
-                        <Card padding="500">
-                            <BlockStack gap="400">
-                                <InlineStack gap="200" align="start">
-                                    <Icon source={TextIcon} />
-                                    <Text variant="headingMd" as="h2">Text Copyright</Text>
-                                </InlineStack>
-                                <FormLayout>
-                                    <TextField
-                                        label="Watermark Text"
-                                        value={settings.text_content || ''}
-                                        onChange={(val) => updateSetting('text_content', val)}
-                                        placeholder="e.g. © 2026 My Store"
-                                        autoComplete="off"
-                                    />
+                            {/* Text Section */}
+                            <Card padding="500">
+                                <BlockStack gap="400">
+                                    <InlineStack align="space-between">
+                                        <InlineStack gap="200">
+                                            <div className="icon-circle" style={{ width: '32px', height: '32px' }}>
+                                                <Icon source={TextIcon} tone="base" />
+                                            </div>
+                                            <Text variant="headingMd" as="h2">Copyright Overlay</Text>
+                                        </InlineStack>
+                                        {settings.text_content && <Badge tone="info">Text Active</Badge>}
+                                    </InlineStack>
 
-                                    {settings.text_content && (
-                                        <>
-                                            <FormLayout.Group>
-                                                <Select
-                                                    label="Text Font"
-                                                    options={FONT_OPTIONS}
-                                                    value={settings.text_font}
-                                                    onChange={(val) => updateSetting('text_font', val)}
-                                                />
-                                                <TextField
-                                                    label="Font Size"
-                                                    type="number"
-                                                    value={settings.text_size.toString()}
-                                                    onChange={(val) => updateSetting('text_size', parseInt(val) || 0)}
-                                                    autoComplete="off"
-                                                />
-                                            </FormLayout.Group>
-                                            <FormLayout.Group>
-                                                <Select
-                                                    label="Text Position"
-                                                    options={POSITION_OPTIONS}
-                                                    value={settings.text_position}
-                                                    onChange={(val) => updateSetting('text_position', val)}
-                                                />
-                                                <RangeSlider
-                                                    label={`Text Opacity: ${Math.round(settings.text_opacity * 100)}%`}
-                                                    value={settings.text_opacity}
-                                                    min={0.1}
-                                                    max={1.0}
-                                                    step={0.1}
-                                                    onChange={(val) => updateSetting('text_opacity', val)}
-                                                    output
-                                                />
-                                            </FormLayout.Group>
-                                            <InlineStack gap="400" align="start">
+                                    <FormLayout>
+                                        <TextField
+                                            label="Watermark Content"
+                                            value={settings.text_content || ''}
+                                            onChange={(val) => updateSetting('text_content', val)}
+                                            placeholder="e.g. © 2026 Your Store Name"
+                                            autoComplete="off"
+                                        />
+
+                                        {settings.text_content && (
+                                            <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                                                <FormLayout.Group>
+                                                    <Select
+                                                        label="Typography"
+                                                        options={FONT_OPTIONS}
+                                                        value={settings.text_font}
+                                                        onChange={(val) => updateSetting('text_font', val)}
+                                                    />
+                                                    <TextField
+                                                        label="Text Size"
+                                                        type="number"
+                                                        value={settings.text_size.toString()}
+                                                        onChange={(val) => updateSetting('text_size', parseInt(val) || 0)}
+                                                        autoComplete="off"
+                                                    />
+                                                </FormLayout.Group>
+                                                <FormLayout.Group>
+                                                    <Select
+                                                        label="Text Placement"
+                                                        options={POSITION_OPTIONS}
+                                                        value={settings.text_position}
+                                                        onChange={(val) => updateSetting('text_position', val)}
+                                                    />
+                                                    <RangeSlider
+                                                        label={`Text Opacity: ${Math.round(settings.text_opacity * 100)}%`}
+                                                        value={settings.text_opacity}
+                                                        min={0.1}
+                                                        max={1.0}
+                                                        step={0.1}
+                                                        onChange={(val) => updateSetting('text_opacity', val)}
+                                                        output
+                                                    />
+                                                </FormLayout.Group>
                                                 <Checkbox
-                                                    label="Enable Outline"
+                                                    label="High Contrast Outline (Shadow)"
                                                     checked={settings.text_outline}
                                                     onChange={(val) => updateSetting('text_outline', val)}
                                                 />
-                                            </InlineStack>
-                                        </>
-                                    )}
-                                </FormLayout>
-                            </BlockStack>
-                        </Card>
+                                            </Box>
+                                        )}
+                                    </FormLayout>
+                                </BlockStack>
+                            </Card>
 
-                        {/* Mobile Settings */}
-                        <Card padding="500">
-                            <BlockStack gap="400">
-                                <InlineStack gap="200" align="start">
-                                    <Icon source={MobileIcon} />
-                                    <Text variant="headingMd" as="h2">Mobile Optimization</Text>
-                                </InlineStack>
-                                <FormLayout>
+                            {/* Mobile Section */}
+                            <Card padding="500">
+                                <BlockStack gap="400">
+                                    <InlineStack gap="200">
+                                        <div className="icon-circle" style={{ width: '32px', height: '32px' }}>
+                                            <Icon source={MobileIcon} tone="base" />
+                                        </div>
+                                        <Text variant="headingMd" as="h2">Mobile Refinement</Text>
+                                    </InlineStack>
                                     <Checkbox
-                                        label="Use separate profile for vertical (mobile) images"
+                                        label="Optimize for portrait/mobile orientation"
                                         checked={settings.mobile_enabled}
                                         onChange={(val) => updateSetting('mobile_enabled', val)}
-                                        helpText="If checked, you can adjust how the watermark appears on portrait images commonly seen on mobile devices."
                                     />
-
                                     {settings.mobile_enabled && (
-                                        <FormLayout.Group>
-                                            <Select
-                                                label="Mobile Position"
-                                                options={POSITION_OPTIONS}
-                                                value={settings.mobile_position}
-                                                onChange={(val) => updateSetting('mobile_position', val)}
-                                            />
-                                            <RangeSlider
-                                                label={`Mobile Scale: ${Math.round(settings.mobile_scale * 100)}%`}
-                                                value={settings.mobile_scale}
-                                                min={0.05}
-                                                max={0.5}
-                                                step={0.01}
-                                                onChange={(val) => updateSetting('mobile_scale', val)}
-                                                output
-                                            />
-                                        </FormLayout.Group>
-                                    )}
-                                </FormLayout>
-                            </BlockStack>
-                        </Card>
-                    </BlockStack>
-                </Layout.Section>
-
-                {/* Right Side: Virtual Preview */}
-                <Layout.Section variant="oneHalf">
-                    <Card
-                        padding="500"
-                    >
-                        <BlockStack gap="400">
-                            <InlineStack align="space-between">
-                                <InlineStack gap="200">
-                                    <Icon source={ViewIcon} />
-                                    <Text variant="headingMd" as="h2">Real-time Preview</Text>
-                                </InlineStack>
-                                <ButtonGroup>
-                                    <Button icon={ViewIcon} onClick={generatePreview} loading={previewLoading}>Refresh Preview</Button>
-                                </ButtonGroup>
-                            </InlineStack>
-
-                            <Box
-                                padding="400"
-                                background="bg-surface-secondary"
-                                borderRadius="200"
-                                minHeight="400px"
-                            >
-                                <BlockStack align="center" gap="400">
-                                    {previewLoading ? (
-                                        <Box padding="800">
-                                            <BlockStack align="center" gap="400">
-                                                <SkeletonBodyText lines={3} />
-                                                <ProgressBar progress={45} size="small" />
-                                            </BlockStack>
-                                        </Box>
-                                    ) : (
-                                        previewImage ? (
-                                            <div style={{ position: 'relative', textAlign: 'center' }}>
-                                                <img
-                                                    src={previewImage}
-                                                    style={{ maxWidth: '100%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                                    alt="Watermark Preview"
+                                        <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                                            <FormLayout.Group>
+                                                <Select
+                                                    label="Mobile Placement"
+                                                    options={POSITION_OPTIONS}
+                                                    value={settings.mobile_position}
+                                                    onChange={(val) => updateSetting('mobile_position', val)}
                                                 />
-                                                <Box paddingBlockStart="200">
-                                                    <Badge tone="success" icon={SettingsIcon}>VIRTUAL PREVIEW</Badge>
-                                                </Box>
-                                            </div>
-                                        ) : (
-                                            <BlockStack align="center" gap="200">
-                                                <Icon source={ImageIcon} tone="subdued" />
-                                                <Text as="p" variant="bodyMd" tone="subdued">Configure your watermark to see a preview here.</Text>
-                                            </BlockStack>
-                                        )
+                                                <RangeSlider
+                                                    label={`Mobile Scale: ${Math.round(settings.mobile_scale * 100)}%`}
+                                                    value={settings.mobile_scale}
+                                                    min={0.05}
+                                                    max={0.5}
+                                                    step={0.01}
+                                                    onChange={(val) => updateSetting('mobile_scale', val)}
+                                                    output
+                                                />
+                                            </FormLayout.Group>
+                                        </Box>
                                     )}
                                 </BlockStack>
-                            </Box>
-
-                            <TextField
-                                label="Sample Image URL"
-                                value={sampleUrl}
-                                onChange={setSampleUrl}
-                                helpText="Paste any image URL to see how your watermark looks on it."
-                                autoComplete="off"
-                            />
-
-                            <Banner title="Draft Mode" tone="info">
-                                <p>Preview uses unsaved settings. Don't forget to <b>Save Settings</b> before applying to your actual catalog.</p>
-                            </Banner>
+                            </Card>
                         </BlockStack>
-                    </Card>
-                </Layout.Section>
-            </Layout>
+                    </Layout.Section>
+
+                    {/* Right: Live Preview */}
+                    <Layout.Section variant="oneHalf">
+                        <div style={{ position: 'sticky', top: '24px' }}>
+                            <Card padding="0">
+                                <Box padding="400" borderBlockEndWidth="025" borderColor="border">
+                                    <InlineStack align="space-between" blockAlign="center">
+                                        <InlineStack gap="200">
+                                            <Icon source={ViewIcon} />
+                                            <Text variant="headingMd" as="h2">Live Composition</Text>
+                                        </InlineStack>
+                                        <Button
+                                            icon={ViewIcon}
+                                            onClick={generatePreview}
+                                            loading={previewLoading}
+                                            variant="secondary"
+                                        >
+                                            Force Refresh
+                                        </Button>
+                                    </InlineStack>
+                                </Box>
+
+                                <Box padding="600" background="bg-surface-secondary">
+                                    <BlockStack gap="400" align="center">
+                                        {previewLoading ? (
+                                            <div style={{ padding: '80px 0', width: '100%' }}>
+                                                <BlockStack gap="400" align="center">
+                                                    <Spinner size="large" />
+                                                    <Text variant="bodyMd" as="p" tone="subdued">Synthesizing preview...</Text>
+                                                </BlockStack>
+                                            </div>
+                                        ) : previewImage ? (
+                                            <div style={{ position: 'relative' }}>
+                                                <img
+                                                    src={previewImage}
+                                                    style={{
+                                                        maxWidth: '100%',
+                                                        borderRadius: '12px',
+                                                        boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+                                                        border: '1px solid rgba(0,0,0,0.05)'
+                                                    }}
+                                                    alt="Composition Preview"
+                                                />
+                                                <div style={{ position: 'absolute', top: '12px', left: '12px' }}>
+                                                    <Badge tone="info" icon={SettingsIcon}>Dynamic Preview</Badge>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ padding: '80px 0', textAlign: 'center' }}>
+                                                <BlockStack gap="200">
+                                                    <Icon source={ImageIcon} tone="subdued" />
+                                                    <Text as="p" tone="subdued" variant="bodyMd">Setup your identity to see a preview.</Text>
+                                                </BlockStack>
+                                            </div>
+                                        )}
+                                    </BlockStack>
+                                </Box>
+
+                                <Box padding="400" borderBlockStartWidth="025" borderColor="border">
+                                    <BlockStack gap="300">
+                                        <TextField
+                                            label="Experimental Placeholder URL"
+                                            value={sampleUrl}
+                                            onChange={setSampleUrl}
+                                            autoComplete="off"
+                                            suffix={<Button onClick={generatePreview}>Load</Button>}
+                                        />
+                                        <Banner tone="warning">
+                                            <p>Previews are <b>virtual</b> and do not affect your live store until you launch a bulk process from the dashboard.</p>
+                                        </Banner>
+                                    </BlockStack>
+                                </Box>
+                            </Card>
+                        </div>
+                    </Layout.Section>
+                </Layout>
+            </div>
         </Page>
     );
 }

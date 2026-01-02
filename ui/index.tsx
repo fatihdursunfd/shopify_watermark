@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import '@shopify/polaris/build/esm/styles.css';
+import './global.css';
 import App from './App';
 
 const rootElement = document.getElementById('root');

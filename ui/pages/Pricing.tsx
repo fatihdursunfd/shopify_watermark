@@ -11,7 +11,10 @@ import {
     SkeletonBodyText,
     Banner,
     List,
+    Box,
+    Icon
 } from '@shopify/polaris';
+import { PlusIcon, SaveIcon } from '@shopify/polaris-icons';
 import { useApi } from '../hooks/useApi';
 import { BillingInfo } from '../types/api';
 
@@ -61,63 +64,83 @@ export const Pricing: React.FC = () => {
 
     return (
         <Page
-            title="Choose Your Plan"
-            subtitle="Select the plan that fits your business needs"
-            narrowWidth
+            title="Subscription Plans"
+            subtitle="Unlock professional watermarking features for your catalog."
+            fullWidth
         >
-            <Layout>
-                {plans.map((plan: any) => {
-                    const isCurrent = plan.key === currentPlanKey;
-                    return (
-                        <Layout.Section key={plan.key}>
-                            <Card>
-                                <BlockStack gap="400">
-                                    <InlineStack align="space-between" blockAlign="center">
-                                        <Text as="h2" variant="headingLg">{plan.name}</Text>
-                                        {isCurrent && <Badge tone="success">Current Plan</Badge>}
-                                    </InlineStack>
+            <div style={{ maxWidth: '1000px', margin: '0 auto', padding: 'var(--p-space-400)' }}>
+                <Layout>
+                    <Layout.Section>
+                        <InlineStack gap="400" wrap={false} align="center">
+                            {plans.map((plan: any) => {
+                                const isCurrent = plan.key === currentPlanKey;
+                                return (
+                                    <Box key={plan.key} width="45%" minWidth="300px">
+                                        <Card padding="600">
+                                            <BlockStack gap="500">
+                                                <InlineStack align="space-between">
+                                                    <BlockStack gap="100">
+                                                        <Text as="h2" variant="headingLg">{plan.name}</Text>
+                                                        {isCurrent && <Badge tone="info">Activated</Badge>}
+                                                    </BlockStack>
+                                                    <div className="icon-circle" style={{ color: isCurrent ? '#6366f1' : '#cbd5e1' }}>
+                                                        <Icon source={isCurrent ? SaveIcon : PlusIcon} />
+                                                    </div>
+                                                </InlineStack>
 
-                                    <Text as="p" variant="headingXl">
-                                        ${plan.price}
-                                        <Text as="span" variant="bodyMd" tone="subdued"> /month</Text>
-                                    </Text>
+                                                <div style={{ padding: '24px 0', borderTop: '1px solid var(--p-color-border-subdued)', borderBottom: '1px solid var(--p-color-border-subdued)' }}>
+                                                    <InlineStack align="start" blockAlign="end">
+                                                        <Text as="p" variant="heading3xl">${plan.price}</Text>
+                                                        <Box paddingInlineStart="200" paddingBlockEnd="100">
+                                                            <Text variant="bodyMd" tone="subdued" as="span">/month</Text>
+                                                        </Box>
+                                                    </InlineStack>
+                                                </div>
 
-                                    <BlockStack gap="200">
-                                        <Text as="h3" variant="headingSm">Features:</Text>
-                                        <List>
-                                            {plan.features.map((feature: string, i: number) => (
-                                                <List.Item key={i}>{feature}</List.Item>
-                                            ))}
-                                        </List>
-                                    </BlockStack>
+                                                <BlockStack gap="300">
+                                                    <Text as="h3" variant="headingSm" tone="subdued">INCLUDED FEATURES</Text>
+                                                    <List>
+                                                        {plan.features.map((feature: string, i: number) => (
+                                                            <List.Item key={i}>
+                                                                <Text variant="bodyMd" as="span">{feature}</Text>
+                                                            </List.Item>
+                                                        ))}
+                                                    </List>
+                                                </BlockStack>
 
-                                    <Button
-                                        variant="primary"
-                                        disabled={isCurrent}
-                                        fullWidth
-                                        onClick={() => {
-                                            if (!isCurrent) {
-                                                // Redirect to Shopify Managed Pricing page
-                                                const shop = billing?.shop || '';
-                                                const pricingUrl = `https://admin.shopify.com/store/${shop.replace('.myshopify.com', '')}/charges/pricing_plans`;
-                                                window.open(pricingUrl, '_top');
-                                            }
-                                        }}
-                                    >
-                                        {isCurrent ? 'Current Plan' : `Select ${plan.name}`}
-                                    </Button>
-                                </BlockStack>
-                            </Card>
-                        </Layout.Section>
-                    );
-                })}
+                                                <Button
+                                                    size="large"
+                                                    variant={isCurrent ? 'secondary' : 'primary'}
+                                                    disabled={isCurrent}
+                                                    fullWidth
+                                                    onClick={() => {
+                                                        if (!isCurrent) {
+                                                            const shop = billing?.shop || '';
+                                                            const pricingUrl = `https://admin.shopify.com/store/${shop.replace('.myshopify.com', '')}/charges/pricing_plans`;
+                                                            window.open(pricingUrl, '_top');
+                                                        }
+                                                    }}
+                                                >
+                                                    {isCurrent ? 'Current Active Plan' : `Upgrade to ${plan.name}`}
+                                                </Button>
+                                            </BlockStack>
+                                        </Card>
+                                        {isCurrent && <div style={{ height: '4px', background: 'var(--p-color-bg-fill-info)', borderRadius: '0 0 8px 8px' }} />}
+                                    </Box>
+                                );
+                            })}
+                        </InlineStack>
+                    </Layout.Section>
 
-                <Layout.Section>
-                    <Banner tone="info">
-                        <p>Plan changes will be reflected in your next billing cycle. You can cancel or change your plan anytime.</p>
-                    </Banner>
-                </Layout.Section>
-            </Layout>
+                    <Layout.Section>
+                        <Box paddingBlockStart="600">
+                            <Banner tone="info">
+                                <p>Plan changes are handled securely via Shopify Managed Pricing. Billing will be reflected in your standard Shopify invoice.</p>
+                            </Banner>
+                        </Box>
+                    </Layout.Section>
+                </Layout>
+            </div>
         </Page>
     );
 };
