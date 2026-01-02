@@ -168,10 +168,10 @@ export function Dashboard() {
                 <BlockStack gap="100">
                   <Text variant="headingLg" as="h1">Studio Dashboard</Text>
                   <Text variant="bodyMd" as="p" tone="subdued">
-                    You have protected <span style={{ color: 'var(--p-color-text-info)', fontWeight: 'bold' }}>{stats.totalProcessed}</span> images across your store.
+                    You have protected <span className="hero-stat-highlight">{stats.totalProcessed}</span> images across your store.
                   </Text>
                 </BlockStack>
-                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="glass-badge">
                   <Text variant="bodySm" fontWeight="bold" as="span">v1.2.0 Stable</Text>
                 </div>
               </InlineStack>

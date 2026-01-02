@@ -178,8 +178,8 @@ export function Settings() {
                             {/* Logo Section */}
                             <Card padding="500">
                                 <BlockStack gap="400">
-                                    <InlineStack align="space-between">
-                                        <InlineStack gap="200">
+                                    <InlineStack align="space-between" blockAlign="center">
+                                        <InlineStack gap="200" blockAlign="center">
                                             <div className="icon-circle" style={{ width: '32px', height: '32px' }}>
                                                 <Icon source={ImageIcon} tone="base" />
                                             </div>
@@ -200,7 +200,7 @@ export function Settings() {
 
                                         {settings.logo_url && (
                                             <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-                                                <FormLayout.Group>
+                                                <BlockStack gap="400">
                                                     <Select
                                                         label="Logo Placement"
                                                         options={POSITION_OPTIONS}
@@ -208,7 +208,7 @@ export function Settings() {
                                                         onChange={(val) => updateSetting('logo_position', val)}
                                                     />
                                                     <RangeSlider
-                                                        label={`Scale: ${Math.round(settings.logo_scale * 100)}%`}
+                                                        label={`Visual Scale: ${Math.round(settings.logo_scale * 100)}%`}
                                                         value={settings.logo_scale}
                                                         min={0.05}
                                                         max={0.5}
@@ -216,8 +216,6 @@ export function Settings() {
                                                         onChange={(val) => updateSetting('logo_scale', val)}
                                                         output
                                                     />
-                                                </FormLayout.Group>
-                                                <FormLayout.Group>
                                                     <RangeSlider
                                                         label={`Visual Opacity: ${Math.round(settings.logo_opacity * 100)}%`}
                                                         value={settings.logo_opacity}
@@ -234,7 +232,7 @@ export function Settings() {
                                                         onChange={(val) => updateSetting('logo_margin', parseInt(val) || 0)}
                                                         autoComplete="off"
                                                     />
-                                                </FormLayout.Group>
+                                                </BlockStack>
                                             </Box>
                                         )}
                                     </FormLayout>
@@ -244,8 +242,8 @@ export function Settings() {
                             {/* Text Section */}
                             <Card padding="500">
                                 <BlockStack gap="400">
-                                    <InlineStack align="space-between">
-                                        <InlineStack gap="200">
+                                    <InlineStack align="space-between" blockAlign="center">
+                                        <InlineStack gap="200" blockAlign="center">
                                             <div className="icon-circle" style={{ width: '32px', height: '32px' }}>
                                                 <Icon source={TextIcon} tone="base" />
                                             </div>
@@ -265,22 +263,20 @@ export function Settings() {
 
                                         {settings.text_content && (
                                             <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-                                                <FormLayout.Group>
+                                                <BlockStack gap="400">
                                                     <Select
-                                                        label="Typography"
+                                                        label="Typography Font"
                                                         options={FONT_OPTIONS}
                                                         value={settings.text_font}
                                                         onChange={(val) => updateSetting('text_font', val)}
                                                     />
                                                     <TextField
-                                                        label="Text Size"
+                                                        label="Text Size (px)"
                                                         type="number"
                                                         value={settings.text_size.toString()}
                                                         onChange={(val) => updateSetting('text_size', parseInt(val) || 0)}
                                                         autoComplete="off"
                                                     />
-                                                </FormLayout.Group>
-                                                <FormLayout.Group>
                                                     <Select
                                                         label="Text Placement"
                                                         options={POSITION_OPTIONS}
@@ -296,12 +292,34 @@ export function Settings() {
                                                         onChange={(val) => updateSetting('text_opacity', val)}
                                                         output
                                                     />
-                                                </FormLayout.Group>
-                                                <Checkbox
-                                                    label="High Contrast Outline (Shadow)"
-                                                    checked={settings.text_outline}
-                                                    onChange={(val) => updateSetting('text_outline', val)}
-                                                />
+                                                    <InlineStack gap="400">
+                                                        <Box width="45%">
+                                                            <TextField
+                                                                label="Text Color"
+                                                                type="text"
+                                                                value={settings.text_color}
+                                                                onChange={(val) => updateSetting('text_color', val)}
+                                                                autoComplete="off"
+                                                                suffix={<div style={{ width: '20px', height: '20px', background: settings.text_color, border: '1px solid #ccc', borderRadius: '4px' }} />}
+                                                            />
+                                                        </Box>
+                                                        <Box width="45%">
+                                                            <TextField
+                                                                label="Outline Color"
+                                                                type="text"
+                                                                value={settings.text_outline_color}
+                                                                onChange={(val) => updateSetting('text_outline_color', val)}
+                                                                autoComplete="off"
+                                                                suffix={<div style={{ width: '20px', height: '20px', background: settings.text_outline_color, border: '1px solid #ccc', borderRadius: '4px' }} />}
+                                                            />
+                                                        </Box>
+                                                    </InlineStack>
+                                                    <Checkbox
+                                                        label="High Contrast Outline (Shadow)"
+                                                        checked={settings.text_outline}
+                                                        onChange={(val) => updateSetting('text_outline', val)}
+                                                    />
+                                                </BlockStack>
                                             </Box>
                                         )}
                                     </FormLayout>
@@ -311,7 +329,7 @@ export function Settings() {
                             {/* Mobile Section */}
                             <Card padding="500">
                                 <BlockStack gap="400">
-                                    <InlineStack gap="200">
+                                    <InlineStack gap="200" blockAlign="center">
                                         <div className="icon-circle" style={{ width: '32px', height: '32px' }}>
                                             <Icon source={MobileIcon} tone="base" />
                                         </div>
@@ -423,7 +441,7 @@ export function Settings() {
                         </div>
                     </Layout.Section>
                 </Layout>
-            </div>
-        </Page>
+            </div >
+        </Page >
     );
 }

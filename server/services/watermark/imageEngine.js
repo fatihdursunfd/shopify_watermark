@@ -75,18 +75,19 @@ function generateTextSVG(text, font, size, color, outlineColor, outline) {
         }
     });
 
-    const textWidth = text.length * size * 0.6; // Approximate
-    const textHeight = size * 1.2;
+    // Be more generous with dimensions to avoid clipping descenders and strokes
+    const textWidth = Math.ceil(text.length * size * 1.0); // Increased multiplier
+    const textHeight = Math.ceil(size * 1.6); // Increased multiplier
 
-    let svg = `<svg width="${textWidth}" height="${textHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    let svg = `<svg width="${textWidth}" height="${textHeight}" viewBox="0 0 ${textWidth} ${textHeight}" xmlns="http://www.w3.org/2000/svg">`;
 
     if (outline) {
-        // Outline/stroke
-        svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="none" stroke="${outlineColor}" stroke-width="2" text-anchor="middle" dominant-baseline="middle">${escapedText}</text>`;
+        // Outline/stroke with a bit more thickness for high contrast
+        svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="none" stroke="${outlineColor}" stroke-width="4" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${escapedText}</text>`;
     }
 
     // Main text
-    svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="${color}" text-anchor="middle" dominant-baseline="middle">${escapedText}</text>`;
+    svg += `<text x="50%" y="50%" font-family="${font}" font-size="${size}" fill="${color}" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${escapedText}</text>`;
     svg += `</svg>`;
 
     return Buffer.from(svg);

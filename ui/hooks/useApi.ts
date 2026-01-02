@@ -92,15 +92,14 @@ export function useApi() {
              * Rollback job
              */
             rollbackJob: (jobId: string) =>
-                jsonRequest<{ success: boolean }>({
-                    url: `/api/watermark/jobs/${jobId}/rollback`,
+                jsonRequest<{ success: boolean }>(`/api/watermark/jobs/${jobId}/rollback`, {
                     method: 'POST'
-                } as any),
+                }),
 
             /**
              * Get Shopify collections list
              */
-            getCollections: () => jsonRequest<{ success: boolean; collections: any[] }>('/api/shopify/collections'),
+            getCollections: () => jsonRequest<{ success: boolean; collections: any[] }>('/api/watermark/shopify/collections'),
 
             getBillingInfo: (sync = false) =>
                 jsonRequest<BillingInfo>(`/api/billing/info${sync ? '?sync=1' : ''}`)

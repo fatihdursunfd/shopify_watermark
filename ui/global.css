@@ -1,7 +1,7 @@
 :root {
-  --app-bg-gradient: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                     radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-                     radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+  --app-bg-gradient: radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+    radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
   --sidebar-blur: blur(20px);
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.1);
@@ -9,7 +9,8 @@
 }
 
 body {
-  background-color: #0f172a; /* Slate 900 */
+  background-color: #0f172a;
+  /* Slate 900 */
 }
 
 /* Custom Polaris Overrides for Dark Mode Premium Look */
@@ -32,16 +33,57 @@ body {
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
-.stat-card-gradient-1 { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
-.stat-card-gradient-2 { background: linear-gradient(135deg, #22c55e 0%, #10b981 100%); }
-.stat-card-gradient-3 { background: linear-gradient(135deg, #ef4444 0%, #f97316 100%); }
+.stat-card-gradient-1 {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+}
+
+.stat-card-gradient-2 {
+  background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+}
+
+.stat-card-gradient-3 {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+}
 
 .hero-banner {
-  background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
   border-radius: 16px;
   padding: 32px;
   margin-bottom: 24px;
-  border-left: 4px solid var(--accent-color);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.hero-banner h1,
+.hero-banner .Polaris-Text--headingLg,
+.hero-banner .Polaris-Text--headingMd {
+  color: #ffffff !important;
+}
+
+.hero-banner p,
+.hero-banner .Polaris-Text--toneSubdued {
+  color: #94a3b8 !important;
+  /* Slate 400 */
+}
+
+.hero-stat-highlight {
+  color: #38bdf8 !important;
+  /* Sky 400 */
+  font-weight: bold;
+}
+
+.glass-badge {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px 16px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  backdrop-filter: blur(4px);
+}
+
+.glass-badge .Polaris-Text {
+  color: #fff !important;
 }
 
 .icon-circle {
