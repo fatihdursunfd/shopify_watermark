@@ -21,7 +21,7 @@ import {
     PRODUCT_DELETE_MEDIA,
     PRODUCT_REORDER_MEDIA
 } from '../graphql/watermark-queries.js';
-import { getAccessToken } from '../db/repositories/shopRepository.js';
+import { getShopToken } from '../db/repositories/shopRepository.js';
 
 /**
  * Watermark Rollback Worker
@@ -34,7 +34,7 @@ export const rollbackWorker = new Worker(
         console.log(`[RollbackWorker] Starting rollback for job ${originalJobId} in ${shop}`);
 
         try {
-            const accessToken = await getAccessToken(shop);
+            const accessToken = await getShopToken(shop);
             const client = new shopify.api.clients.Graphql({
                 session: { shop, accessToken }
             });

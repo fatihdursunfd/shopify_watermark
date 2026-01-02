@@ -12,7 +12,7 @@ import {
     PRODUCT_REORDER_MEDIA,
     STAGED_UPLOADS_CREATE
 } from '../graphql/watermark-queries.js';
-import { getAccessToken } from '../db/repositories/shopRepository.js';
+import { getShopToken } from '../db/repositories/shopRepository.js';
 import axios from 'axios';
 
 /**
@@ -29,7 +29,7 @@ export const watermarkWorker = new Worker(
         await startJob(jobId);
 
         try {
-            const accessToken = await getAccessToken(shop);
+            const accessToken = await getShopToken(shop);
             const settings = await getWatermarkSettings(shop);
 
             // 2. Resolve products based on scope
