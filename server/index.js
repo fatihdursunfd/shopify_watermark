@@ -1,6 +1,6 @@
-// server/index.js
-import express from 'express';
 import dotenv from 'dotenv';
+dotenv.config();
+import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { shopify } from './config/shopify-app.js';
@@ -13,7 +13,7 @@ import { errorHandler } from './middleware/error.js';
 import './services/watermarkWorker.js';
 import './services/rollbackWorker.js'; // Start the rollback worker
 
-dotenv.config();
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

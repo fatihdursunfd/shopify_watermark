@@ -9,7 +9,8 @@ try {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 2000
+    connectionTimeoutMillis: 10000, // Increased to 10s for cloud DB cold starts
+    idleTimeoutMillis: 30000,
   });
   console.log('⚠️  PostgreSQL pool created (will test on first query)');
 } catch (error) {
