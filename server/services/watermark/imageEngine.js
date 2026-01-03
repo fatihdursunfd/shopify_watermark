@@ -63,7 +63,7 @@ export async function validateImage(buffer) {
 /**
  * Generate SVG text for text watermark
  */
-function generateTextSVG(text, font, size, color, outlineColor, outline, resFactor = 1) {
+function generateTextSVG(text, font, size, color, outlineColor, outline, resFactor = 1, settings = {}) {
     const escapedText = text.replace(/[<>&'"]/g, (c) => {
         switch (c) {
             case '<': return '&lt;';
