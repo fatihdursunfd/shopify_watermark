@@ -8,7 +8,7 @@ import { SUBSCRIPTION_PLANS, SUBSCRIPTION_STATUS } from "../constants/index.js";
 const sessionStorage = new PostgresSessionStorage();
 
 // TODO: Define your app's required scopes here (e.g., 'read_products,write_orders')
-const DEFAULT_SCOPES = "";
+const DEFAULT_SCOPES = "read_products,write_products,read_customers,write_customers,read_orders,write_orders,read_content,write_content,read_files,write_files";
 
 export const shopify = shopifyApp({
     api: {

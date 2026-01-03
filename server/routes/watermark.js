@@ -165,10 +165,44 @@ router.post('/assets/register', asyncHandler(async (req, res) => {
         }
     });
 
-    const fileData = fileCreateRes.data.fileCreate.files[0];
+    const userErrors = fileCreateRes.data.fileCreate.userErrors;
+    if (userErrors?.length > 0) {
+        throw new Error(`Shopify FileCreate Error: ${userErrors[0].message}`);
+    }
+
+    let fileData = fileCreateRes.data.fileCreate.files[0];
     const shopifyFileId = fileData.id;
-    // For images, URL is in image.url
-    const publicUrl = fileData.image?.url || fileData.url;
+
+    // Shopify files are processed asynchronously. If it's a MediaImage, 
+    // the image.url might be null initially while Shopify processes it.
+    let publicUrl = fileData.image?.url || fileData.url;
+
+    // Retry polling for the URL if it's not immediately available
+    if (!publicUrl) {
+        console.log(`[Assets] URL not ready for ${shopifyFileId}, polling...`);
+        for (let i = 0; i < 5; i++) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s
+            const pollRes = await client.request(`
+                query getFile($id: ID!) {
+                    node(id: $id) {
+                        ... on MediaImage {
+                            image { url }
+                        }
+                        ... on GenericFile {
+                            url
+                        }
+                    }
+                }
+            `, { variables: { id: shopifyFileId } });
+
+            publicUrl = pollRes.data.node?.image?.url || pollRes.data.node?.url;
+            if (publicUrl) break;
+        }
+    }
+
+    if (!publicUrl) {
+        throw new Error('Shopify confirmed file creation but public URL is still not available after polling.');
+    }
 
     // 2. Save to our database
     const asset = await createWatermarkAsset(
