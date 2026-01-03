@@ -37,6 +37,7 @@ export const QUERIES = {
             logo_opacity DECIMAL(3,2) DEFAULT 0.8,
             logo_margin INTEGER DEFAULT 20,
             logo_scale DECIMAL(3,2) DEFAULT 0.2,
+            logo_rotation INTEGER DEFAULT 0,
             text_content TEXT,
             text_font VARCHAR(100) DEFAULT 'Arial',
             text_size INTEGER DEFAULT 24,
@@ -45,12 +46,24 @@ export const QUERIES = {
             text_opacity DECIMAL(3,2) DEFAULT 0.8,
             text_outline BOOLEAN DEFAULT true,
             text_outline_color VARCHAR(7) DEFAULT '#000000',
+            text_rotation INTEGER DEFAULT 0,
             mobile_enabled BOOLEAN DEFAULT false,
             mobile_position VARCHAR(50),
             mobile_scale DECIMAL(3,2) DEFAULT 0.15,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Migrations for existing tables
+        DO $$ 
+        BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='logo_rotation') THEN
+                ALTER TABLE watermark_settings ADD COLUMN logo_rotation INTEGER DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='text_rotation') THEN
+                ALTER TABLE watermark_settings ADD COLUMN text_rotation INTEGER DEFAULT 0;
+            END IF;
+        END $$;
         
         CREATE TABLE IF NOT EXISTS watermark_assets (
             id SERIAL PRIMARY KEY,
@@ -84,7 +97,7 @@ export const QUERIES = {
         
         CREATE TABLE IF NOT EXISTS watermark_job_items (
             id SERIAL PRIMARY KEY,
-            job_id UUID NOT NULL,
+            job_id UUID NOT NULL REFERENCES watermark_jobs(id) ON DELETE CASCADE,
             product_id TEXT NOT NULL,
             product_title TEXT,
             original_media_id TEXT,
@@ -116,7 +129,7 @@ export const QUERIES = {
         
         CREATE TABLE IF NOT EXISTS rollback_runs (
             id SERIAL PRIMARY KEY,
-            job_id UUID NOT NULL,
+            job_id UUID NOT NULL REFERENCES watermark_jobs(id) ON DELETE CASCADE,
             shop VARCHAR(255) NOT NULL,
             status VARCHAR(50) DEFAULT 'pending',
             items_to_rollback INTEGER DEFAULT 0,
