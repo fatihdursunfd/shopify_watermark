@@ -22,7 +22,8 @@ import {
 } from '../db/repositories/watermarkRulesRepository.js';
 import {
     getWatermarkAssets,
-    deleteWatermarkAsset
+    deleteWatermarkAsset,
+    createWatermarkAsset
 } from '../db/repositories/watermarkAssetsRepository.js';
 import {
     JOB_STATUS,
@@ -32,7 +33,7 @@ import {
 } from '../constants/watermark.js';
 import { createPreview } from '../services/watermark/previewService.js';
 import { addWatermarkJob, cancelJob, addRollbackJob } from '../services/watermarkQueue.js';
-import { GET_COLLECTIONS } from '../graphql/watermark-queries.js';
+import { GET_COLLECTIONS, STAGED_UPLOADS_CREATE, FILE_CREATE } from '../graphql/watermark-queries.js';
 import { shopify } from '../config/shopify-app.js';
 
 const router = express.Router();
