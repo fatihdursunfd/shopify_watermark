@@ -7,6 +7,10 @@ import {
     shouldUseMobileProfile
 } from '../../constants/watermark.js';
 
+// 🚀 Optimize Sharp for memory-constrained environments (like 500MB)
+sharp.cache(false); // Disable internal cache to free memory immediately
+sharp.concurrency(1); // Limit threads per instance to prevent memory spikes
+
 /**
  * Download image from URL
  */

@@ -15,6 +15,7 @@ import {
     STAGED_UPLOADS_CREATE
 } from '../graphql/watermark-queries.js';
 import { getShopToken } from '../db/repositories/shopRepository.js';
+import { graphqlRequest } from '../utils/shopify-client.js';
 import axios from 'axios';
 
 /**
@@ -86,11 +87,9 @@ async function resolveProductIds(shop, accessToken, scopeType, scopeValue) {
 }
 
 async function processProduct(shop, accessToken, productId, jobId, settings) {
-    const client = new shopify.api.clients.Graphql({ session: { shop, accessToken } });
-
     // A. Fetch current media
-    const mediaRes = await client.request(GET_PRODUCT_MEDIA, { variables: { id: productId } });
-    const productNode = mediaRes.data.product;
+    const mediaRes = await graphqlRequest(shop, accessToken, GET_PRODUCT_MEDIA, { id: productId });
+    const productNode = mediaRes.product;
     const productName = productNode.title;
     const mediaNodes = productNode.media.edges
         .map(e => e.node)
@@ -107,59 +106,93 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
         });
     }
 
-    // C. Process images (Parallel capped or sequential for stability)
+    // C. Batch Staged Upload URLs (Shopify allows multiple in one call)
+    // This significantly reduces RTT for products with many images
     const processedItems = [];
-    for (let i = 0; i < mediaNodes.length; i++) {
-        const targetImage = mediaNodes[i];
-        try {
-            const { buffer, hash } = await applyWatermark(targetImage.image.url, settings, preloadedLogoBuffer);
+    const MAX_STAGED_BATCH = 25;
+    const stagedTargets = [];
 
-            // Staged upload
-            const fileName = `wm_${Date.now()}_${i}.jpg`;
-            const stagedRes = await client.request(STAGED_UPLOADS_CREATE, {
-                variables: { input: [{ filename: fileName, mimeType: 'image/jpeg', resource: 'IMAGE', httpMethod: 'POST' }] }
-            });
-            const target = stagedRes.data.stagedUploadsCreate.stagedTargets[0];
+    for (let i = 0; i < mediaNodes.length; i += MAX_STAGED_BATCH) {
+        const batch = mediaNodes.slice(i, i + MAX_STAGED_BATCH);
+        const stagedInputs = batch.map((_, idx) => ({
+            filename: `wm_${Date.now()}_${i + idx}.jpg`,
+            mimeType: 'image/jpeg',
+            resource: 'IMAGE',
+            httpMethod: 'POST'
+        }));
 
-            const formData = new FormData();
-            target.parameters.forEach(p => formData.append(p.name, p.value));
-            formData.append('file', new Blob([buffer], { type: 'image/jpeg' }), fileName);
-            await axios.post(target.url, formData, { timeout: 60000 });
+        const stagedRes = await graphqlRequest(shop, accessToken, STAGED_UPLOADS_CREATE, { input: stagedInputs });
+        stagedTargets.push(...stagedRes.stagedUploadsCreate.stagedTargets);
+    }
 
-            processedItems.push({
-                originalMediaId: targetImage.id,
-                originalUrl: targetImage.image.url,
-                resourceUrl: target.resourceUrl,
-                hash,
-                index: i
-            });
-        } catch (err) {
-            console.error(`[Worker] Image ${i} in ${productId} failed:`, err.message);
+    // D. Process images with internal parallelism limit to save memory while being fast
+    const IMAGE_CONCURRENCY = 3;
+    for (let i = 0; i < mediaNodes.length; i += IMAGE_CONCURRENCY) {
+        const batch = mediaNodes.slice(i, i + IMAGE_CONCURRENCY);
+
+        await Promise.all(batch.map(async (targetImage, batchIdx) => {
+            const index = i + batchIdx;
+            const target = stagedTargets[index];
+            if (!target) return;
+
+            try {
+                const { buffer, hash } = await applyWatermark(targetImage.image.url, settings, preloadedLogoBuffer);
+
+                // Upload directly to Shopify's bucket
+                const formData = new FormData();
+                target.parameters.forEach(p => formData.append(p.name, p.value));
+                formData.append('file', new Blob([buffer], { type: 'image/jpeg' }), target.parameters.find(p => p.name === 'key')?.value || 'file.jpg');
+
+                await axios.post(target.url, formData, { timeout: 60000 });
+
+                processedItems.push({
+                    originalMediaId: targetImage.id,
+                    originalUrl: targetImage.image.url,
+                    resourceUrl: target.resourceUrl,
+                    hash,
+                    index
+                });
+            } catch (err) {
+                console.error(`[Worker] Image ${index} in ${productId} failed:`, err.message);
+            }
+        }));
+
+        // Manual cleanup hint for GC if needed, though usually automatic
+        if (i % 9 === 0) {
+            if (global.gc) global.gc();
         }
     }
 
     if (processedItems.length === 0) return;
 
-    // D. Create Media on Product
-    const createRes = await client.request(PRODUCT_CREATE_MEDIA, {
-        variables: {
+    // E. Create Media on Product in chunks of 10 (Shopify Limit)
+    // This fixes the "only 10 images" issue
+    const newMediaNodes = [];
+    const MEDIA_CREATE_CHUNK = 10;
+
+    // Sort processed items by index to maintain order
+    processedItems.sort((a, b) => a.index - b.index);
+
+    for (let i = 0; i < processedItems.length; i += MEDIA_CREATE_CHUNK) {
+        const chunk = processedItems.slice(i, i + MEDIA_CREATE_CHUNK);
+        const createRes = await graphqlRequest(shop, accessToken, PRODUCT_CREATE_MEDIA, {
             productId,
-            media: processedItems.map(item => ({
+            media: chunk.map(item => ({
                 originalSource: item.resourceUrl,
                 mediaContentType: 'IMAGE',
                 alt: `Watermarked ${productName}`
             }))
+        });
+
+        if (createRes.productCreateMedia?.media) {
+            newMediaNodes.push(...createRes.productCreateMedia.media);
         }
-    });
+    }
 
-    const newMediaNodes = createRes.data.productCreateMedia.media;
-
-    // E. Save to DB and Reorder
+    // F. Save to DB and Reorder
     const moves = [];
     for (let i = 0; i < processedItems.length; i++) {
         const item = processedItems[i];
-        // The index in newMediaNodes might mismatch if some failed during creation, 
-        // but productCreateMedia returns them in order of input.
         const newMediaId = newMediaNodes[i]?.id;
         if (!newMediaId) continue;
 
@@ -171,9 +204,9 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
         moves.push({ id: newMediaId, newPosition: i.toString() });
     }
 
-    // F. Reorder
+    // G. Reorder (Also in chunks if there are many moves, but 250 is usually safe for reorder)
     if (moves.length > 0) {
-        await client.request(PRODUCT_REORDER_MEDIA, { variables: { id: productId, moves } }).catch(e => {
+        await graphqlRequest(shop, accessToken, PRODUCT_REORDER_MEDIA, { id: productId, moves }).catch(e => {
             console.warn(`[Worker] Reorder fail for ${productId}:`, e.message);
         });
     }
