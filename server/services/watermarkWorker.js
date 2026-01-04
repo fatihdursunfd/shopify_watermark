@@ -130,106 +130,134 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
 
     // A. Fetch current media
     const mediaRes = await client.request(GET_PRODUCT_MEDIA, { variables: { id: productId } });
-    const mediaNodes = mediaRes.data.product.media.edges.map(e => e.node);
-    const targetImage = mediaNodes.find(m => m.mediaContentType === 'IMAGE'); // Process first image for now
+    const productName = mediaRes.data.product.title;
+    const mediaNodes = mediaRes.data.product.media.edges
+        .map(e => e.node)
+        .filter(m => m.mediaContentType === 'IMAGE');
 
-    if (!targetImage) {
+    if (mediaNodes.length === 0) {
         console.log(`[Worker] No images found for product ${productId}, skipping.`);
         return;
     }
 
-    const originalUrl = targetImage.image.url;
-    const originalMediaId = targetImage.id;
+    console.log(`[Worker] Found ${mediaNodes.length} images for product ${productId}`);
 
-    // B. Apply watermark
-    const { buffer, hash } = await applyWatermark(originalUrl, settings);
+    const processedItems = [];
 
-    // C. Record in DB (Job Item)
-    const jobItem = await createJobItem(
-        jobId,
-        productId,
-        mediaRes.data.product.title,
-        originalMediaId,
-        originalUrl,
-        1, // Position placeholder
-        true, // Is featured placeholder
-        hash
-    );
+    // B. Process each image (Apply Watermark & Upload Staged)
+    for (let i = 0; i < mediaNodes.length; i++) {
+        const targetImage = mediaNodes[i];
+        const originalUrl = targetImage.image.url;
+        const originalMediaId = targetImage.id;
 
-    try {
-        // D. Upload to Shopify (Staged Uploads)
-        const fileName = `watermarked_${Date.now()}.jpg`;
-        const stagedUploadRes = await client.request(STAGED_UPLOADS_CREATE, {
-            variables: {
-                input: [{
-                    filename: fileName,
-                    mimeType: 'image/jpeg',
-                    resource: 'IMAGE',
-                    httpMethod: 'POST'
-                }]
-            }
-        });
-
-        const stagedData = stagedUploadRes.data.stagedUploadsCreate;
-        if (stagedData.userErrors.length > 0) {
-            throw new Error(`Staged Upload Error: ${stagedData.userErrors[0].message}`);
-        }
-
-        const target = stagedData.stagedTargets[0];
-
-        // Multipart upload using native-like FormData (Node 18+) or axios auto-handling
-        const formData = new FormData();
-        target.parameters.forEach(p => formData.append(p.name, p.value));
-
-        // Use a generic Blob if available, or just the buffer if axios supports it with the right headers
-        // Most stable for S3/Shopify:
-        const fileBlob = new Blob([buffer], { type: 'image/jpeg' });
-        formData.append('file', fileBlob, fileName);
-
-        await axios.post(target.url, formData);
-
-        // E. Create Media on Product
-        const createRes = await client.request(PRODUCT_CREATE_MEDIA, {
-            variables: {
-                productId,
-                media: [{
-                    originalSource: target.resourceUrl,
-                    mediaContentType: 'IMAGE',
-                    alt: `Watermarked ${mediaRes.data.product.title}`
-                }]
-            }
-        });
-
-        if (createRes.data.productCreateMedia.mediaUserErrors.length > 0) {
-            throw new Error(createRes.data.productCreateMedia.mediaUserErrors[0].message);
-        }
-
-        const newMediaId = createRes.data.productCreateMedia.media[0].id;
-
-        // F. Reorder/Swap: Make the new watermarked image the FIRST one (Featured)
-        // This ensures the customer sees the watermarked version immediately
         try {
-            await client.request(PRODUCT_REORDER_MEDIA, {
+            // 1. Apply watermark
+            const { buffer, hash } = await applyWatermark(originalUrl, settings);
+
+            // 2. Upload to Shopify (Staged Uploads)
+            const fileName = `watermarked_${Date.now()}_${i}.jpg`;
+            const stagedUploadRes = await client.request(STAGED_UPLOADS_CREATE, {
                 variables: {
-                    id: productId,
-                    moves: [{
-                        id: newMediaId,
-                        newPosition: "0" // Move to first position
+                    input: [{
+                        filename: fileName,
+                        mimeType: 'image/jpeg',
+                        resource: 'IMAGE',
+                        httpMethod: 'POST'
                     }]
                 }
             });
-            console.log(`[Worker] Reordered media for ${productId}: New image is now featured.`);
-        } catch (reorderError) {
-            console.warn(`[Worker] Non-fatal: Failed to reorder media for ${productId}:`, reorderError.message);
+
+            const stagedData = stagedUploadRes.data.stagedUploadsCreate;
+            if (stagedData.userErrors.length > 0) {
+                throw new Error(`Staged Upload Error: ${stagedData.userErrors[0].message}`);
+            }
+
+            const target = stagedData.stagedTargets[0];
+            const formData = new FormData();
+            target.parameters.forEach(p => formData.append(p.name, p.value));
+            const fileBlob = new Blob([buffer], { type: 'image/jpeg' });
+            formData.append('file', fileBlob, fileName);
+
+            await axios.post(target.url, formData);
+
+            processedItems.push({
+                originalMediaId,
+                originalUrl,
+                resourceUrl: target.resourceUrl,
+                hash,
+                index: i
+            });
+
+        } catch (error) {
+            console.error(`[Worker] Failed to process image ${originalMediaId} for product ${productId}:`, error.message);
+            // We continue with other images even if one fails
         }
-
-        // G. Mark DB item as completed
-        await markJobItemCompleted(jobItem.id, newMediaId, target.resourceUrl);
-
-        console.log(`[Worker] Successfully processed product ${productId}`);
-
-    } catch (error) {
-        await markJobItemFailed(jobItem.id, error.message);
-        throw error;
     }
+
+    if (processedItems.length === 0) {
+        throw new Error(`Failed to watermark any images for product ${productId}`);
+    }
+
+    // C. Create Media on Product in Bulk
+    const mediaInput = processedItems.map(item => ({
+        originalSource: item.resourceUrl,
+        mediaContentType: 'IMAGE',
+        alt: `Watermarked ${productName}`
+    }));
+
+    const createRes = await client.request(PRODUCT_CREATE_MEDIA, {
+        variables: {
+            productId,
+            media: mediaInput
+        }
+    });
+
+    if (createRes.data.productCreateMedia.mediaUserErrors.length > 0) {
+        throw new Error(createRes.data.productCreateMedia.mediaUserErrors[0].message);
+    }
+
+    const newMediaNodes = createRes.data.productCreateMedia.media;
+
+    // D. Record in DB and Reorder
+    const moves = [];
+    for (let i = 0; i < processedItems.length; i++) {
+        const item = processedItems[i];
+        const newMediaId = newMediaNodes[i].id;
+
+        // Record in DB
+        const jobItem = await createJobItem(
+            jobId,
+            productId,
+            productName,
+            item.originalMediaId,
+            item.originalUrl,
+            item.index + 1,
+            item.index === 0,
+            item.hash
+        );
+
+        await markJobItemCompleted(jobItem.id, newMediaId, item.resourceUrl);
+
+        // Prepare reorder
+        // We want new images to take the positions 0, 1, 2... relative to each other at the front
+        moves.push({
+            id: newMediaId,
+            newPosition: i.toString()
+        });
+    }
+
+    // E. Reorder/Swap
+    try {
+        await client.request(PRODUCT_REORDER_MEDIA, {
+            variables: {
+                id: productId,
+                moves
+            }
+        });
+        console.log(`[Worker] Reordered ${moves.length} media items for ${productId}`);
+    } catch (reorderError) {
+        console.warn(`[Worker] Non-fatal: Failed to reorder media for ${productId}:`, reorderError.message);
+    }
+
+    console.log(`[Worker] Successfully processed product ${productId}`);
 }
