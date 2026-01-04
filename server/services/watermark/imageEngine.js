@@ -169,7 +169,8 @@ export async function applyLogoWatermark(imageBuffer, settings, metadata) {
             metadata.height,
             finalWidth,
             finalHeight,
-            scaledMargin
+            scaledMargin,
+            settings.use_custom_placement ? { x: settings.logo_x, y: settings.logo_y } : null
         );
 
         // Composite watermark onto image
@@ -250,7 +251,8 @@ export async function applyTextWatermark(imageBuffer, settings, metadata) {
             metadata.height,
             watermarkMetadata.width,
             watermarkMetadata.height,
-            scaledMargin
+            scaledMargin,
+            settings.use_custom_placement ? { x: settings.text_x, y: settings.text_y } : null
         );
 
         // Composite watermark onto image

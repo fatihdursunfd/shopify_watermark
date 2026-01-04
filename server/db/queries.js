@@ -38,6 +38,8 @@ export const QUERIES = {
             logo_margin INTEGER DEFAULT 20,
             logo_scale DECIMAL(3,2) DEFAULT 0.2,
             logo_rotation INTEGER DEFAULT 0,
+            logo_x INTEGER DEFAULT 0,
+            logo_y INTEGER DEFAULT 0,
             text_content TEXT,
             text_font VARCHAR(100) DEFAULT 'Arial',
             text_size INTEGER DEFAULT 24,
@@ -47,6 +49,9 @@ export const QUERIES = {
             text_outline BOOLEAN DEFAULT true,
             text_outline_color VARCHAR(7) DEFAULT '#000000',
             text_rotation INTEGER DEFAULT 0,
+            text_x INTEGER DEFAULT 0,
+            text_y INTEGER DEFAULT 0,
+            use_custom_placement BOOLEAN DEFAULT false,
             mobile_enabled BOOLEAN DEFAULT false,
             mobile_position VARCHAR(50),
             mobile_scale DECIMAL(3,2) DEFAULT 0.15,
@@ -62,6 +67,21 @@ export const QUERIES = {
             END IF;
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='text_rotation') THEN
                 ALTER TABLE watermark_settings ADD COLUMN text_rotation INTEGER DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='logo_x') THEN
+                ALTER TABLE watermark_settings ADD COLUMN logo_x INTEGER DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='logo_y') THEN
+                ALTER TABLE watermark_settings ADD COLUMN logo_y INTEGER DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='text_x') THEN
+                ALTER TABLE watermark_settings ADD COLUMN text_x INTEGER DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='text_y') THEN
+                ALTER TABLE watermark_settings ADD COLUMN text_y INTEGER DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='use_custom_placement') THEN
+                ALTER TABLE watermark_settings ADD COLUMN use_custom_placement BOOLEAN DEFAULT false;
             END IF;
         END $$;
         

@@ -217,9 +217,28 @@ export function shouldUseMobileProfile(width, height) {
 }
 
 /**
- * Get position coordinates based on preset
+ * Get position coordinates based on preset or custom coordinates
  */
-export function getPositionCoordinates(position, imageWidth, imageHeight, watermarkWidth, watermarkHeight, margin) {
+export function getPositionCoordinates(position, imageWidth, imageHeight, watermarkWidth, watermarkHeight, margin, customCoordinates = null) {
+    // If custom coordinates are provided and we are using custom placement
+    if (customCoordinates && customCoordinates.x !== undefined && customCoordinates.y !== undefined) {
+        // customCoordinates are in percentages (0-100) representing the CENTER of the watermark
+        // to match the UI's transform: translate(-50%, -50%) behavior.
+
+        let x = (customCoordinates.x / 100) * imageWidth - (watermarkWidth / 2);
+        let y = (customCoordinates.y / 100) * imageHeight - (watermarkHeight / 2);
+
+        // Clamp to image bounds to prevent sharp errors (though center-offset can go slightly out if intended)
+        // We'll allow them to go slightly off-canvas if the user dragged them there, 
+        // but sharp requires 'top' and 'left' to be within valid ranges if we want it to work simply.
+        // Actually, sharp composite allows coordinates, but 'top' and 'left' MUST be >= 0 
+        // unless we use a different approach. Let's clamp for safety.
+        x = Math.max(0, Math.min(x, imageWidth - watermarkWidth));
+        y = Math.max(0, Math.min(y, imageHeight - watermarkHeight));
+
+        return { x, y };
+    }
+
     const coords = { x: 0, y: 0 };
 
     switch (position) {

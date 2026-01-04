@@ -26,6 +26,9 @@ export interface WatermarkSettings {
     logo_opacity: number;
     logo_margin: number;
     logo_scale: number;
+    logo_rotation: number;
+    logo_x: number;
+    logo_y: number;
     text_content: string | null;
     text_font: string;
     text_size: number;
@@ -34,6 +37,10 @@ export interface WatermarkSettings {
     text_opacity: number;
     text_outline: boolean;
     text_outline_color: string;
+    text_rotation: number;
+    text_x: number;
+    text_y: number;
+    use_custom_placement: boolean;
     mobile_enabled: boolean;
     mobile_position: string;
     mobile_scale: number;

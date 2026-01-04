@@ -151,18 +151,21 @@ SELECT * FROM watermark_settings WHERE shop = $1;
 
 export const UPSERT_SETTINGS = `
 INSERT INTO watermark_settings(
-    shop, logo_url, logo_position, logo_opacity, logo_margin, logo_scale, logo_rotation,
+    shop, logo_url, logo_position, logo_opacity, logo_margin, logo_scale, logo_rotation, logo_x, logo_y,
     text_content, text_font, text_size, text_color, text_position,
-    text_opacity, text_outline, text_outline_color, text_rotation,
+    text_opacity, text_outline, text_outline_color, text_rotation, text_x, text_y,
+    use_custom_placement,
     mobile_enabled, mobile_position, mobile_scale, updated_at
-) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP)
+) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, CURRENT_TIMESTAMP)
 ON CONFLICT(shop) DO UPDATE SET
-logo_url = EXCLUDED.logo_url,
+    logo_url = EXCLUDED.logo_url,
     logo_position = EXCLUDED.logo_position,
     logo_opacity = EXCLUDED.logo_opacity,
     logo_margin = EXCLUDED.logo_margin,
     logo_scale = EXCLUDED.logo_scale,
     logo_rotation = EXCLUDED.logo_rotation,
+    logo_x = EXCLUDED.logo_x,
+    logo_y = EXCLUDED.logo_y,
     text_content = EXCLUDED.text_content,
     text_font = EXCLUDED.text_font,
     text_size = EXCLUDED.text_size,
@@ -172,6 +175,9 @@ logo_url = EXCLUDED.logo_url,
     text_outline = EXCLUDED.text_outline,
     text_outline_color = EXCLUDED.text_outline_color,
     text_rotation = EXCLUDED.text_rotation,
+    text_x = EXCLUDED.text_x,
+    text_y = EXCLUDED.text_y,
+    use_custom_placement = EXCLUDED.use_custom_placement,
     mobile_enabled = EXCLUDED.mobile_enabled,
     mobile_position = EXCLUDED.mobile_position,
     mobile_scale = EXCLUDED.mobile_scale,
