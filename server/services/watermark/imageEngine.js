@@ -277,47 +277,118 @@ export async function applyTextWatermark(imageBuffer, settings, metadata) {
 }
 
 /**
- * Main function: Apply watermark based on settings
+ * Main function: Apply watermark based on settings (OPTIMIZED SINGLE-PASS)
  */
 export async function applyWatermark(imageUrl, settings, preloadedLogoBuffer = null) {
     try {
-        console.log(`[ImageEngine] Processing image: ${imageUrl}`);
+        console.log(`[ImageEngine] Processing image (Single-Pass): ${imageUrl}`);
 
-        // Download image
+        // 1. Download image
         const imageBuffer = await downloadImage(imageUrl);
-
-        // Generate hash
         const imageHash = generateImageHash(imageBuffer);
-
-        // Validate image
         const metadata = await validateImage(imageBuffer);
 
-        console.log(`[ImageEngine] Image metadata: ${metadata.width}x${metadata.height}, format: ${metadata.format}`);
+        // 2. Determine Profile (Mobile/Desktop)
+        const useMobile = settings.mobile_enabled && shouldUseMobileProfile(metadata.width, metadata.height);
 
-        let processedBuffer = imageBuffer;
+        // 3. Prepare Pipeline
+        const compositeLayers = [];
+        const baseRes = 800;
+        const resFactor = metadata.width / baseRes;
 
-        // Apply logo watermark if configured
+        // --- LAYER A: LOGO ---
         if (settings.logo_url) {
-            console.log('[ImageEngine] Applying logo watermark...');
-            processedBuffer = await applyLogoWatermark(processedBuffer, settings, metadata, preloadedLogoBuffer);
+            const logoBuffer = preloadedLogoBuffer || await downloadImage(settings.logo_url);
+            const logoMetadata = await sharp(logoBuffer).metadata();
+
+            const scale = useMobile ? settings.mobile_scale : settings.logo_scale;
+            const position = useMobile ? settings.mobile_position : settings.logo_position;
+            const opacity = settings.logo_opacity;
+
+            const watermarkWidth = Math.floor(metadata.width * scale);
+            const watermarkHeight = Math.floor((logoMetadata.height / logoMetadata.width) * watermarkWidth);
+
+            let processedLogo = sharp(logoBuffer)
+                .resize(watermarkWidth, watermarkHeight, { fit: 'inside', withoutEnlargement: true })
+                .rotate(settings.logo_rotation || 0, { background: { r: 0, g: 0, b: 0, alpha: 0 } });
+
+            if (opacity < 1.0) {
+                processedLogo = processedLogo.composite([{
+                    input: Buffer.from([255, 255, 255, Math.floor(opacity * 255)]),
+                    raw: { width: 1, height: 1, channels: 4 },
+                    tile: true, blend: 'dest-in'
+                }]);
+            }
+
+            const finalLogoBuffer = await processedLogo.toBuffer();
+            const finalLogoMeta = await sharp(finalLogoBuffer).metadata();
+            const scaledMargin = Math.floor(settings.logo_margin * resFactor);
+
+            const coords = getPositionCoordinates(
+                position, metadata.width, metadata.height,
+                finalLogoMeta.width, finalLogoMeta.height,
+                scaledMargin,
+                settings.use_custom_placement ? { x: settings.logo_x, y: settings.logo_y } : null
+            );
+
+            compositeLayers.push({
+                input: finalLogoBuffer,
+                top: Math.floor(coords.y),
+                left: Math.floor(coords.x)
+            });
         }
 
-        // Apply text watermark if configured
+        // --- LAYER B: TEXT ---
         if (settings.text_content) {
-            console.log('[ImageEngine] Applying text watermark...');
-            processedBuffer = await applyTextWatermark(processedBuffer, settings, metadata);
+            const scale = useMobile ? settings.mobile_scale : 1.0;
+            const position = useMobile ? settings.mobile_position : settings.text_position;
+            const opacity = settings.text_opacity;
+            const scaledSize = Math.floor(settings.text_size * scale * resFactor);
+            const scaledMargin = Math.floor(20 * resFactor);
+
+            const textSVG = generateTextSVG(
+                settings.text_content, settings.text_font, scaledSize,
+                settings.text_color, settings.text_outline_color,
+                settings.text_outline, resFactor, settings
+            );
+
+            let processedText = sharp(textSVG).png();
+            if (opacity < 1.0) {
+                processedText = processedText.composite([{
+                    input: Buffer.from([255, 255, 255, Math.floor(opacity * 255)]),
+                    raw: { width: 1, height: 1, channels: 4 },
+                    tile: true, blend: 'dest-in'
+                }]);
+            }
+
+            const finalTextBuffer = await processedText.toBuffer();
+            const finalTextMeta = await sharp(finalTextBuffer).metadata();
+
+            const coords = getPositionCoordinates(
+                position, metadata.width, metadata.height,
+                finalTextMeta.width, finalTextMeta.height,
+                scaledMargin,
+                settings.use_custom_placement ? { x: settings.text_x, y: settings.text_y } : null
+            );
+
+            compositeLayers.push({
+                input: finalTextBuffer,
+                top: Math.floor(coords.y),
+                left: Math.floor(coords.x)
+            });
         }
 
-        console.log('[ImageEngine] Watermark applied successfully');
+        // 4. Final Single-Pass Execution
+        // sharp pipeline with sequentialRead hint for memory efficiency
+        const finalBuffer = await sharp(imageBuffer, { sequentialRead: true })
+            .composite(compositeLayers)
+            .jpeg({ quality: 90, progressive: true, mozjpeg: true })
+            .toBuffer();
 
         return {
-            buffer: processedBuffer,
+            buffer: finalBuffer,
             hash: imageHash,
-            metadata: {
-                width: metadata.width,
-                height: metadata.height,
-                format: metadata.format
-            }
+            metadata: { width: metadata.width, height: metadata.height, format: metadata.format }
         };
     } catch (error) {
         console.error('[ImageEngine] Error processing image:', error.message);

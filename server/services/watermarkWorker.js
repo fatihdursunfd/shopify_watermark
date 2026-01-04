@@ -125,8 +125,8 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
         stagedTargets.push(...stagedRes.stagedUploadsCreate.stagedTargets);
     }
 
-    // D. Process images with internal parallelism limit to save memory while being fast
-    const IMAGE_CONCURRENCY = 3;
+    // D. Process images SEQUENTIALLY for ultra-low memory usage (500MB limit safety)
+    const IMAGE_CONCURRENCY = 1;
     for (let i = 0; i < mediaNodes.length; i += IMAGE_CONCURRENCY) {
         const batch = mediaNodes.slice(i, i + IMAGE_CONCURRENCY);
 
@@ -135,13 +135,16 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
             const target = stagedTargets[index];
             if (!target) return;
 
+            let imageBuffer = null;
             try {
-                const { buffer, hash } = await applyWatermark(targetImage.image.url, settings, preloadedLogoBuffer);
+                const result = await applyWatermark(targetImage.image.url, settings, preloadedLogoBuffer);
+                imageBuffer = result.buffer;
+                const imageHash = result.hash;
 
                 // Upload directly to Shopify's bucket
                 const formData = new FormData();
                 target.parameters.forEach(p => formData.append(p.name, p.value));
-                formData.append('file', new Blob([buffer], { type: 'image/jpeg' }), target.parameters.find(p => p.name === 'key')?.value || 'file.jpg');
+                formData.append('file', new Blob([imageBuffer], { type: 'image/jpeg' }), target.parameters.find(p => p.name === 'key')?.value || 'file.jpg');
 
                 await axios.post(target.url, formData, { timeout: 60000 });
 
@@ -149,17 +152,22 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
                     originalMediaId: targetImage.id,
                     originalUrl: targetImage.image.url,
                     resourceUrl: target.resourceUrl,
-                    hash,
+                    hash: imageHash,
                     index
                 });
+
+                // 🗑️ Explicitly cleanup large buffer
+                imageBuffer = null;
             } catch (err) {
                 console.error(`[Worker] Image ${index} in ${productId} failed:`, err.message);
+            } finally {
+                imageBuffer = null;
             }
         }));
 
-        // Manual cleanup hint for GC if needed, though usually automatic
-        if (i % 9 === 0) {
-            if (global.gc) global.gc();
+        // Manual cleanup hint for GC every 2 images
+        if (i % 2 === 0 && global.gc) {
+            global.gc();
         }
     }
 
