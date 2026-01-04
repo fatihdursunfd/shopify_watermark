@@ -108,7 +108,7 @@ function generateTextSVG(text, font, size, color, outlineColor, outline, resFact
 /**
  * Apply logo watermark to image
  */
-export async function applyLogoWatermark(imageBuffer, settings, metadata) {
+export async function applyLogoWatermark(imageBuffer, settings, metadata, preloadedLogoBuffer = null) {
     try {
         // Determine which profile to use
         const useMobile = settings.mobile_enabled && shouldUseMobileProfile(metadata.width, metadata.height);
@@ -117,8 +117,8 @@ export async function applyLogoWatermark(imageBuffer, settings, metadata) {
         const margin = settings.logo_margin;
         const opacity = settings.logo_opacity;
 
-        // Download logo
-        const logoBuffer = await downloadImage(settings.logo_url);
+        // Use preloaded logo or download it
+        const logoBuffer = preloadedLogoBuffer || await downloadImage(settings.logo_url);
 
         // Load logo and get dimensions
         const logoMetadata = await sharp(logoBuffer).metadata();
@@ -275,7 +275,7 @@ export async function applyTextWatermark(imageBuffer, settings, metadata) {
 /**
  * Main function: Apply watermark based on settings
  */
-export async function applyWatermark(imageUrl, settings) {
+export async function applyWatermark(imageUrl, settings, preloadedLogoBuffer = null) {
     try {
         console.log(`[ImageEngine] Processing image: ${imageUrl}`);
 
@@ -295,7 +295,7 @@ export async function applyWatermark(imageUrl, settings) {
         // Apply logo watermark if configured
         if (settings.logo_url) {
             console.log('[ImageEngine] Applying logo watermark...');
-            processedBuffer = await applyLogoWatermark(processedBuffer, settings, metadata);
+            processedBuffer = await applyLogoWatermark(processedBuffer, settings, metadata, preloadedLogoBuffer);
         }
 
         // Apply text watermark if configured
@@ -340,11 +340,17 @@ export async function generatePreview(imageUrl, settings, maxWidth = 800) {
         // Get metadata of resized image
         const metadata = await sharp(resizedBuffer).metadata();
 
+        // Download logo once for preview if needed
+        let preloadedLogoBuffer = null;
+        if (settings.logo_url) {
+            preloadedLogoBuffer = await downloadImage(settings.logo_url);
+        }
+
         // Apply watermark to resized image
         let processedBuffer = resizedBuffer;
 
         if (settings.logo_url) {
-            processedBuffer = await applyLogoWatermark(processedBuffer, settings, metadata);
+            processedBuffer = await applyLogoWatermark(processedBuffer, settings, metadata, preloadedLogoBuffer);
         }
 
         if (settings.text_content) {

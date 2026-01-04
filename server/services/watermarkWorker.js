@@ -69,7 +69,7 @@ export const watermarkWorker = new Worker(
     },
     {
         connection: redisConnection,
-        concurrency: 1 // Keep it 1 for MVP to avoid rate limits
+        concurrency: 3 // Increased concurrency to process multiple products simultaneously
     }
 );
 
@@ -140,19 +140,27 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
         return;
     }
 
-    console.log(`[Worker] Found ${mediaNodes.length} images for product ${productId}`);
+    console.log(`[Worker] Found ${mediaNodes.length} images for product ${productId}. Processing in parallel...`);
 
-    const processedItems = [];
+    // B. Pre-download logo once for this product
+    let preloadedLogoBuffer = null;
+    if (settings.logo_url) {
+        try {
+            const { downloadImage } = await import('./watermark/imageEngine.js');
+            preloadedLogoBuffer = await downloadImage(settings.logo_url);
+        } catch (logoError) {
+            console.error('[Worker] Failed to pre-download logo:', logoError.message);
+        }
+    }
 
-    // B. Process each image (Apply Watermark & Upload Staged)
-    for (let i = 0; i < mediaNodes.length; i++) {
-        const targetImage = mediaNodes[i];
+    // C. Process each image in PARALLEL
+    const processingPromises = mediaNodes.map(async (targetImage, i) => {
         const originalUrl = targetImage.image.url;
         const originalMediaId = targetImage.id;
 
         try {
-            // 1. Apply watermark
-            const { buffer, hash } = await applyWatermark(originalUrl, settings);
+            // 1. Apply watermark (with preloaded logo)
+            const { buffer, hash } = await applyWatermark(originalUrl, settings, preloadedLogoBuffer);
 
             // 2. Upload to Shopify (Staged Uploads)
             const fileName = `watermarked_${Date.now()}_${i}.jpg`;
@@ -168,9 +176,7 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
             });
 
             const stagedData = stagedUploadRes.data.stagedUploadsCreate;
-            if (stagedData.userErrors.length > 0) {
-                throw new Error(`Staged Upload Error: ${stagedData.userErrors[0].message}`);
-            }
+            if (stagedData.userErrors.length > 0) throw new Error(stagedData.userErrors[0].message);
 
             const target = stagedData.stagedTargets[0];
             const formData = new FormData();
@@ -180,25 +186,27 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
 
             await axios.post(target.url, formData);
 
-            processedItems.push({
+            return {
                 originalMediaId,
                 originalUrl,
                 resourceUrl: target.resourceUrl,
                 hash,
                 index: i
-            });
-
+            };
         } catch (error) {
-            console.error(`[Worker] Failed to process image ${originalMediaId} for product ${productId}:`, error.message);
-            // We continue with other images even if one fails
+            console.error(`[Worker] Image ${i} failed for product ${productId}:`, error.message);
+            return null;
         }
-    }
+    });
+
+    const results = await Promise.all(processingPromises);
+    const processedItems = results.filter(item => item !== null);
 
     if (processedItems.length === 0) {
         throw new Error(`Failed to watermark any images for product ${productId}`);
     }
 
-    // C. Create Media on Product in Bulk
+    // D. Create Media on Product in Bulk
     const mediaInput = processedItems.map(item => ({
         originalSource: item.resourceUrl,
         mediaContentType: 'IMAGE',
@@ -206,10 +214,7 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
     }));
 
     const createRes = await client.request(PRODUCT_CREATE_MEDIA, {
-        variables: {
-            productId,
-            media: mediaInput
-        }
+        variables: { productId, media: mediaInput }
     });
 
     if (createRes.data.productCreateMedia.mediaUserErrors.length > 0) {
@@ -218,45 +223,27 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
 
     const newMediaNodes = createRes.data.productCreateMedia.media;
 
-    // D. Record in DB and Reorder
+    // E. Record in DB and Reorder
     const moves = [];
     for (let i = 0; i < processedItems.length; i++) {
         const item = processedItems[i];
         const newMediaId = newMediaNodes[i].id;
 
-        // Record in DB
         const jobItem = await createJobItem(
-            jobId,
-            productId,
-            productName,
-            item.originalMediaId,
-            item.originalUrl,
-            item.index + 1,
-            item.index === 0,
-            item.hash
+            jobId, productId, productName, item.originalMediaId,
+            item.originalUrl, item.index + 1, item.index === 0, item.hash
         );
 
         await markJobItemCompleted(jobItem.id, newMediaId, item.resourceUrl);
 
-        // Prepare reorder
-        // We want new images to take the positions 0, 1, 2... relative to each other at the front
-        moves.push({
-            id: newMediaId,
-            newPosition: i.toString()
-        });
+        moves.push({ id: newMediaId, newPosition: i.toString() });
     }
 
-    // E. Reorder/Swap
+    // F. Reorder/Swap
     try {
-        await client.request(PRODUCT_REORDER_MEDIA, {
-            variables: {
-                id: productId,
-                moves
-            }
-        });
-        console.log(`[Worker] Reordered ${moves.length} media items for ${productId}`);
+        await client.request(PRODUCT_REORDER_MEDIA, { variables: { id: productId, moves } });
     } catch (reorderError) {
-        console.warn(`[Worker] Non-fatal: Failed to reorder media for ${productId}:`, reorderError.message);
+        console.warn(`[Worker] Reorder non-fatal error for ${productId}:`, reorderError.message);
     }
 
     console.log(`[Worker] Successfully processed product ${productId}`);
