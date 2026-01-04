@@ -102,7 +102,8 @@ export function Dashboard() {
     setCreatingJob(true);
     try {
       const value = scopeType === 'collection' ? selectedCollection : null;
-      const data = await api.createJob(scopeType, value, 0);
+      const total = scopeType === 'collection' ? collections.find(c => c.value === selectedCollection)?.count || 0 : 0;
+      const data = await api.createJob(scopeType, value, total);
       if (data.success) {
         setIsModalOpen(false);
         fetchData();
@@ -129,7 +130,20 @@ export function Dashboard() {
     <Text variant="bodyMd" fontWeight="bold" as="span">#{job.id.slice(0, 8)}</Text>,
     job.job_type.toUpperCase(),
     getStatusBadge(job.status),
-    `${job.processed_products}/${job.total_products}`,
+    <Box minWidth="120px" paddingBlockEnd="200">
+      <BlockStack gap="100">
+        <Text variant="bodyMd" as="span" alignment="end">
+          {job.processed_products} / {job.total_products || '...'}
+        </Text>
+        {(job.status === 'processing' || job.status === 'pending') && job.total_products > 0 && (
+          <ProgressBar
+            progress={Math.min(100, Math.round((job.processed_products / job.total_products) * 100))}
+            size="small"
+            tone="primary"
+          />
+        )}
+      </BlockStack>
+    </Box>,
     new Date(job.created_at).toLocaleDateString(),
     <div key={job.id} style={{ display: 'flex', gap: '8px' }}>
       <Button

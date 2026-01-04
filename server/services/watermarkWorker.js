@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis.js';
 import { QUEUE_NAMES, JOB_STATUS, JOB_ITEM_STATUS, SCOPE_TYPE } from '../constants/watermark.js';
-import { startJob, completeJob, incrementProcessedProducts, incrementFailedProducts, getWatermarkJob } from '../db/repositories/watermarkJobsRepository.js';
+import { startJob, completeJob, incrementProcessedProducts, incrementFailedProducts, getWatermarkJob, setTotalProducts } from '../db/repositories/watermarkJobsRepository.js';
 import { createJobItem, markJobItemCompleted, markJobItemFailed } from '../db/repositories/watermarkJobItemsRepository.js';
 import { getWatermarkSettings } from '../db/repositories/watermarkSettingsRepository.js';
 import { applyWatermark, downloadImage } from './watermark/imageEngine.js';
@@ -37,6 +37,10 @@ export const watermarkWorker = new Worker(
 
             await startJob(jobId);
             const productIds = await resolveProductIds(shop, accessToken, scope_type, scope_value);
+
+            // 📊 Update total products count once we know it
+            await setTotalProducts(jobId, productIds.length);
+
             console.log(`[Worker] Processing ${productIds.length} products`);
 
             for (const productId of productIds) {

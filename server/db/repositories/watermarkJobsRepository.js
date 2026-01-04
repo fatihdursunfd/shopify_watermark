@@ -6,7 +6,8 @@ import {
     UPDATE_JOB_STATUS,
     UPDATE_JOB_PROGRESS,
     START_JOB,
-    COMPLETE_JOB
+    COMPLETE_JOB,
+    UPDATE_JOB_TOTAL_PRODUCTS
 } from '../watermark-queries.js';
 import { JOB_STATUS, JOB_TYPE } from '../../constants/watermark.js';
 
@@ -184,5 +185,22 @@ export async function incrementFailedProducts(jobId) {
         );
     } catch (error) {
         console.error(`[WatermarkJobs] Error incrementing failed for ${jobId}:`, error.message);
+    }
+}
+
+/**
+ * Set total products count for a job
+ */
+export async function setTotalProducts(jobId, totalProducts) {
+    if (!pool) {
+        throw new Error('Database pool not available');
+    }
+
+    try {
+        const res = await pool.query(UPDATE_JOB_TOTAL_PRODUCTS, [jobId, totalProducts]);
+        return res.rows[0];
+    } catch (error) {
+        console.error(`[WatermarkJobs] Error setting total products for ${jobId}:`, error.message);
+        throw error;
     }
 }

@@ -235,6 +235,13 @@ WHERE id = $1
 RETURNING *;
 `;
 
+export const UPDATE_JOB_TOTAL_PRODUCTS = `
+UPDATE watermark_jobs 
+SET total_products = $2, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING *;
+`;
+
 // ============================================================================
 // WATERMARK JOB ITEMS QUERIES
 // ============================================================================
