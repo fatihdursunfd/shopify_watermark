@@ -12,6 +12,8 @@ import {
     GET_PRODUCTS_BY_COLLECTION,
     PRODUCT_CREATE_MEDIA,
     PRODUCT_REORDER_MEDIA,
+    PRODUCT_DELETE_MEDIA,
+    PRODUCT_VARIANTS_BULK_UPDATE,
     STAGED_UPLOADS_CREATE
 } from '../graphql/watermark-queries.js';
 import { getShopToken } from '../db/repositories/shopRepository.js';
@@ -99,6 +101,8 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
         .map(e => e.node)
         .filter(m => m.mediaContentType === 'IMAGE');
 
+    const variants = productNode.variants.edges.map(e => e.node);
+
     if (mediaNodes.length === 0) return;
 
     // B. Pre-download logo once
@@ -152,12 +156,18 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
 
                 await axios.post(target.url, formData, { timeout: 60000 });
 
+                // Track which variants use this specific image
+                const associatedVariantIds = variants
+                    .filter(v => v.featuredMedia?.id === targetImage.id)
+                    .map(v => v.id);
+
                 processedItems.push({
                     originalMediaId: targetImage.id,
                     originalUrl: targetImage.image.url,
                     resourceUrl: target.resourceUrl,
                     hash: imageHash,
-                    index
+                    index,
+                    variantIds: associatedVariantIds
                 });
 
                 // 🗑️ Explicitly cleanup large buffer
@@ -203,23 +213,59 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
 
     // F. Save to DB and Reorder
     const moves = [];
+    const variantUpdates = [];
+
     for (let i = 0; i < processedItems.length; i++) {
         const item = processedItems[i];
         const newMediaId = newMediaNodes[i]?.id;
         if (!newMediaId) continue;
 
+        // Prepare variant updates
+        if (item.variantIds?.length > 0) {
+            item.variantIds.forEach(vId => {
+                variantUpdates.push({ id: vId, mediaId: newMediaId });
+            });
+        }
+
         const jobItem = await createJobItem(
             jobId, productId, productName, item.originalMediaId,
-            item.originalUrl, item.index + 1, item.index === 0, item.hash
+            item.originalUrl, item.index + 1, item.index === 0, item.hash,
+            item.variantIds
         );
         await markJobItemCompleted(jobItem.id, newMediaId, item.resourceUrl);
         moves.push({ id: newMediaId, newPosition: i.toString() });
     }
 
-    // G. Reorder (Also in chunks if there are many moves, but 250 is usually safe for reorder)
+    // G. Assign new media to variants if needed
+    if (variantUpdates.length > 0) {
+        try {
+            await graphqlRequest(shop, accessToken, PRODUCT_VARIANTS_BULK_UPDATE, {
+                productId,
+                variants: variantUpdates
+            });
+        } catch (variantErr) {
+            console.warn(`[Worker] Variant update fail for ${productId}:`, variantErr.message);
+        }
+    }
+
+    // H. Reorder (Also in chunks if there are many moves, but 250 is usually safe for reorder)
     if (moves.length > 0) {
         await graphqlRequest(shop, accessToken, PRODUCT_REORDER_MEDIA, { id: productId, moves }).catch(e => {
             console.warn(`[Worker] Reorder fail for ${productId}:`, e.message);
         });
+    }
+
+    // I. DELETE ORIGINAL MEDIA (As requested by user: "koparsak")
+    const originalMediaIds = processedItems.map(item => item.originalMediaId).filter(id => id);
+    if (originalMediaIds.length > 0) {
+        try {
+            await graphqlRequest(shop, accessToken, PRODUCT_DELETE_MEDIA, {
+                productId,
+                mediaIds: originalMediaIds
+            });
+            console.log(`[Worker] Deleted ${originalMediaIds.length} original images for ${productId}`);
+        } catch (delErr) {
+            console.warn(`[Worker] Cleanup fail for ${productId}:`, delErr.message);
+        }
     }
 }

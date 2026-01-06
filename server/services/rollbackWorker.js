@@ -19,8 +19,11 @@ import {
 import { shopify } from '../config/shopify-app.js';
 import {
     PRODUCT_DELETE_MEDIA,
-    PRODUCT_REORDER_MEDIA
+    PRODUCT_REORDER_MEDIA,
+    PRODUCT_CREATE_MEDIA,
+    PRODUCT_VARIANTS_BULK_UPDATE
 } from '../graphql/watermark-queries.js';
+import { graphqlRequest } from '../utils/shopify-client.js';
 import { getShopToken } from '../db/repositories/shopRepository.js';
 
 /**
@@ -35,9 +38,6 @@ export const rollbackWorker = new Worker(
 
         try {
             const accessToken = await getShopToken(shop);
-            const client = new shopify.api.clients.Graphql({
-                session: { shop, accessToken }
-            });
 
             // 1. Get all items that were successfully watermarked
             const items = await getJobItemsForRollback(originalJobId);
@@ -55,33 +55,67 @@ export const rollbackWorker = new Worker(
             // 3. Process each item (Undo changes)
             for (const item of items) {
                 try {
-                    // A. Delete the watermarked media from Shopify
-                    if (item.new_media_id) {
-                        const deleteRes = await client.request(PRODUCT_DELETE_MEDIA, {
-                            variables: {
-                                productId: item.product_id,
-                                mediaIds: [item.new_media_id]
-                            }
-                        });
+                    let restoredMediaId = null;
 
-                        if (deleteRes.data.productDeleteMedia.mediaUserErrors.length > 0) {
-                            console.warn(`[RollbackWorker] Error deleting media ${item.new_media_id}:`, deleteRes.data.productDeleteMedia.mediaUserErrors[0].message);
+                    // A. Restore original media if we have the URL
+                    if (item.original_media_url) {
+                        try {
+                            const createRes = await graphqlRequest(shop, accessToken, PRODUCT_CREATE_MEDIA, {
+                                productId: item.product_id,
+                                media: [{
+                                    originalSource: item.original_media_url,
+                                    mediaContentType: 'IMAGE',
+                                    alt: 'Restored original'
+                                }]
+                            });
+
+                            if (createRes.productCreateMedia?.media?.length > 0) {
+                                restoredMediaId = createRes.productCreateMedia.media[0].id;
+                                console.log(`[RollbackWorker] Restored original image for product ${item.product_id}`);
+                            }
+                        } catch (createErr) {
+                            console.warn(`[RollbackWorker] Failed to restore original media from URL:`, createErr.message);
                         }
                     }
 
-                    // B. Restore original featured status (If it was featured, make it first again)
-                    // Since we deleted the new media, the original media usually shifts back, 
-                    // but to be 100% safe, we re-position the original media to its recorded original_position.
-                    if (item.original_media_id && item.original_position === 1) {
+                    // B. Update variants to use restored original ID
+                    if (restoredMediaId && item.variant_ids && item.variant_ids.length > 0) {
                         try {
-                            await client.request(PRODUCT_REORDER_MEDIA, {
-                                variables: {
-                                    id: item.product_id,
-                                    moves: [{
-                                        id: item.original_media_id,
-                                        newPosition: "0" // Restore to featured position
-                                    }]
-                                }
+                            const variantUpdates = item.variant_ids.map(vId => ({
+                                id: vId,
+                                mediaId: restoredMediaId
+                            }));
+
+                            await graphqlRequest(shop, accessToken, PRODUCT_VARIANTS_BULK_UPDATE, {
+                                productId: item.product_id,
+                                variants: variantUpdates
+                            });
+                        } catch (varErr) {
+                            console.warn(`[RollbackWorker] Failed to update variants during rollback:`, varErr.message);
+                        }
+                    }
+
+                    // C. Delete the watermarked media from Shopify
+                    if (item.new_media_id) {
+                        const deleteRes = await graphqlRequest(shop, accessToken, PRODUCT_DELETE_MEDIA, {
+                            productId: item.product_id,
+                            mediaIds: [item.new_media_id]
+                        });
+
+                        if (deleteRes.productDeleteMedia.mediaUserErrors.length > 0) {
+                            console.warn(`[RollbackWorker] Error deleting media ${item.new_media_id}:`, deleteRes.productDeleteMedia.mediaUserErrors[0].message);
+                        }
+                    }
+
+                    // D. Restore original featured status if it was featured
+                    if (restoredMediaId && item.original_position === 1) {
+                        try {
+                            await graphqlRequest(shop, accessToken, PRODUCT_REORDER_MEDIA, {
+                                id: item.product_id,
+                                moves: [{
+                                    id: restoredMediaId,
+                                    newPosition: "0" // Restore to featured position
+                                }]
                             });
                         } catch (reorderError) {
                             console.warn(`[RollbackWorker] Reorder fail (non-fatal) for ${item.product_id}:`, reorderError.message);

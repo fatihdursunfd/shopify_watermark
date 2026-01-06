@@ -12,9 +12,14 @@ export const GET_PRODUCT_MEDIA = `
     product(id: $id) {
       id
       title
-      featuredMedia {
-        ... on MediaImage {
-          id
+      variants(first: 100) {
+        edges {
+          node {
+            id
+            featuredMedia {
+              id
+            }
+          }
         }
       }
       media(first: 50) {
@@ -223,6 +228,26 @@ export const PRODUCT_UPDATE_MEDIA = `
       }
       product {
         id
+      }
+    }
+  }
+`;
+
+export const PRODUCT_VARIANTS_BULK_UPDATE = `
+  mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+      product {
+        id
+      }
+      productVariants {
+        id
+        featuredMedia {
+          id
+        }
+      }
+      userErrors {
+        field
+        message
       }
     }
   }

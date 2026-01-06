@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS watermark_job_items (
     original_is_featured BOOLEAN DEFAULT false,
     new_media_id TEXT,
     new_media_url TEXT,
+    variant_ids JSONB,
     status VARCHAR(50) DEFAULT 'pending',
     error_message TEXT,
     image_hash VARCHAR(64),
@@ -249,8 +250,8 @@ RETURNING *;
 export const CREATE_JOB_ITEM = `
 INSERT INTO watermark_job_items (
     job_id, product_id, product_title, original_media_id, original_media_url,
-    original_position, original_is_featured, image_hash
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    original_position, original_is_featured, image_hash, variant_ids
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 `;
 

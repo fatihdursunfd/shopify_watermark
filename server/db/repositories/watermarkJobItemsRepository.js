@@ -12,7 +12,7 @@ import {
 /**
  * Create a new job item
  */
-export async function createJobItem(jobId, productId, productTitle, originalMediaId, originalMediaUrl, originalPosition, originalIsFeatured, imageHash) {
+export async function createJobItem(jobId, productId, productTitle, originalMediaId, originalMediaUrl, originalPosition, originalIsFeatured, imageHash, variantIds = null) {
     if (!pool) {
         throw new Error('Database pool not available');
     }
@@ -26,7 +26,8 @@ export async function createJobItem(jobId, productId, productTitle, originalMedi
             originalMediaUrl,
             originalPosition,
             originalIsFeatured,
-            imageHash
+            imageHash,
+            variantIds ? JSON.stringify(variantIds) : null
         ]);
 
         return res.rows[0];
@@ -171,7 +172,8 @@ export async function bulkCreateJobItems(jobId, items) {
                 item.originalMediaUrl,
                 item.originalPosition,
                 item.originalIsFeatured,
-                item.imageHash
+                item.imageHash,
+                item.variantIds ? JSON.stringify(item.variantIds) : null
             ]);
 
             createdItems.push(res.rows[0]);

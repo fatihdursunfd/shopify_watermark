@@ -83,6 +83,9 @@ export const QUERIES = {
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_settings' AND column_name='use_custom_placement') THEN
                 ALTER TABLE watermark_settings ADD COLUMN use_custom_placement BOOLEAN DEFAULT false;
             END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='watermark_job_items' AND column_name='variant_ids') THEN
+                ALTER TABLE watermark_job_items ADD COLUMN variant_ids JSONB;
+            END IF;
         END $$;
         
         CREATE TABLE IF NOT EXISTS watermark_assets (
