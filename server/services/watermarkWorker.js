@@ -146,8 +146,8 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
             const { stream, metadata, timings } = await processor.process(targetImage.image.url);
 
             // --- ARCHIVE & DUPLICATE CHECK ("mağaza medyasında kalmalı") ---
-            let archivedUrl = targetImage.image.url;
-            const isAlreadyFile = archivedUrl.includes('/files/');
+            let archivedSource = targetImage.image.url;
+            const isAlreadyFile = archivedSource.includes('/files/');
 
             if (!isAlreadyFile) {
                 // Check if we already archived this SPECIFIC media ID in a previous job
@@ -157,17 +157,17 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
                         FROM watermark_job_items i
                         JOIN watermark_jobs j ON i.job_id = j.id
                         WHERE j.shop = $1 AND i.original_media_id = $2
-                          AND i.original_media_url LIKE '%/files/%'
+                          AND (i.original_media_url LIKE '%/files/%' OR i.original_media_url LIKE 'gid://shopify/%')
                           AND i.status = 'completed'
                         LIMIT 1
                     `, [shop, targetImage.id]);
 
                     if (rows.length > 0) {
-                        archivedUrl = rows[0].original_media_url;
-                        console.log(`[Worker] Found existing archive for ${targetImage.id}: ${archivedUrl}`);
+                        archivedSource = rows[0].original_media_url;
+                        console.log(`[Worker] Found existing archive for ${targetImage.id}: ${archivedSource}`);
                     } else {
-                        // Truly new, archive it
-                        console.log(`[Worker] Archiving original image to Store Files for ${productId}...`);
+                        // Truly new, archive it to Shopify Files
+                        console.log(`[Worker] Archiving original image for ${productId}...`);
                         const archiveRes = await graphqlRequest(shop, accessToken, FILE_CREATE, {
                             files: [{
                                 originalSource: targetImage.image.url.split('?')[0],
@@ -175,10 +175,20 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
                                 alt: `Original Backup: ${productName}`
                             }]
                         });
-                        archivedUrl = archiveRes.fileCreate?.files?.[0]?.image?.url || targetImage.image.url;
+
+                        // Log archive errors
+                        const errors = archiveRes.fileCreate?.userErrors || [];
+                        if (errors.length > 0) {
+                            console.error(`[Worker] Archive Error for ${productId}:`, JSON.stringify(errors));
+                        }
+
+                        // Store the File ID (GID) as it's the most robust source for restoration
+                        const archivedFile = archiveRes.fileCreate?.files?.[0];
+                        archivedSource = archivedFile?.id || archivedFile?.image?.url || targetImage.image.url;
+                        console.log(`[Worker] Archived ${targetImage.id} to permanent source: ${archivedSource}`);
                     }
                 } catch (dbErr) {
-                    console.warn(`[Worker] Archive lookup failed, defaulting to direct archive:`, dbErr.message);
+                    console.warn(`[Worker] Archive lookup failed, defaulting to CDN:`, dbErr.message);
                 }
             }
 
@@ -193,7 +203,7 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
 
             processedItems.push({
                 originalMediaId: targetImage.id,
-                originalUrl: archivedUrl, // Store the permanent archived URL
+                originalUrl: archivedSource, // GID or URL
                 resourceUrl: target.resourceUrl,
                 index: i,
                 variantIds: variants.filter(v => v.image?.id === targetImage.image?.id).map(v => v.id)
