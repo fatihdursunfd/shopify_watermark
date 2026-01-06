@@ -4,7 +4,8 @@ import { QUEUE_NAMES, JOB_STATUS, JOB_ITEM_STATUS, SCOPE_TYPE } from '../constan
 import { startJob, completeJob, incrementProcessedProducts, incrementFailedProducts, getWatermarkJob, setTotalProducts } from '../db/repositories/watermarkJobsRepository.js';
 import { createJobItem, markJobItemCompleted, markJobItemFailed } from '../db/repositories/watermarkJobItemsRepository.js';
 import { getWatermarkSettings } from '../db/repositories/watermarkSettingsRepository.js';
-import { applyWatermark, downloadImage } from './watermark/imageEngine.js';
+import { WatermarkProcessor } from './watermark/watermarkProcessor.js';
+import { uploadToShopify } from './watermark/shopifyUpload.js';
 import { shopify } from '../config/shopify-app.js';
 import {
     GET_PRODUCT_MEDIA,
@@ -40,22 +41,29 @@ export const watermarkWorker = new Worker(
             await startJob(jobId);
             const productIds = await resolveProductIds(shop, accessToken, scope_type, scope_value);
 
-            console.log(`[Worker] Resolved ${productIds.length} products for job ${jobId}`);
-
             // 📊 Update total products count once we know it
             await setTotalProducts(jobId, productIds.length);
+            console.log(`[Worker] Processing ${productIds.length} products with concurrency 3`);
 
-            console.log(`[Worker] Processing ${productIds.length} products for ${shop}`);
+            const processor = new WatermarkProcessor(settings);
+            await processor.init();
 
-            for (const productId of productIds) {
-                try {
-                    // Process one product at a time for better stability and progress tracking
-                    await processProduct(shop, accessToken, productId, jobId, settings);
-                    await incrementProcessedProducts(jobId);
-                } catch (error) {
-                    console.error(`[Worker] Product ${productId} failed:`, error.message);
-                    await incrementFailedProducts(jobId);
-                }
+            // Process products with controlled concurrency
+            const CONCURRENCY = 3;
+            for (let i = 0; i < productIds.length; i += CONCURRENCY) {
+                const chunk = productIds.slice(i, i + CONCURRENCY);
+                await Promise.all(chunk.map(async (productId) => {
+                    try {
+                        await processProduct(shop, accessToken, productId, jobId, processor);
+                        await incrementProcessedProducts(jobId);
+                    } catch (error) {
+                        console.error(`[Worker] Product ${productId} failed:`, error.message);
+                        await incrementFailedProducts(jobId);
+                    }
+                }));
+
+                // Periodically trigger GC if available
+                if (i % 6 === 0 && global.gc) global.gc();
             }
 
             await completeJob(jobId, JOB_STATUS.COMPLETED);
@@ -94,7 +102,8 @@ async function resolveProductIds(shop, accessToken, scopeType, scopeValue) {
     return productIds;
 }
 
-async function processProduct(shop, accessToken, productId, jobId, settings) {
+async function processProduct(shop, accessToken, productId, jobId, processor) {
+    const apiStart = Date.now();
     // A. Fetch current media
     const mediaRes = await graphqlRequest(shop, accessToken, GET_PRODUCT_MEDIA, { id: productId });
     const productNode = mediaRes.product;
@@ -104,20 +113,9 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
         .filter(m => m.mediaContentType === 'IMAGE');
 
     const variants = productNode.variants.edges.map(e => e.node);
-
     if (mediaNodes.length === 0) return;
 
-    // B. Pre-download logo once
-    let preloadedLogoBuffer = null;
-    if (settings.logo_url) {
-        preloadedLogoBuffer = await downloadImage(settings.logo_url).catch(e => {
-            console.warn(`[Worker] Logo download failed: ${e.message}`);
-            return null;
-        });
-    }
-
-    // C. Batch Staged Upload URLs (Shopify allows multiple in one call)
-    // This significantly reduces RTT for products with many images
+    // B. Batch Staged Upload URLs
     const processedItems = [];
     const MAX_STAGED_BATCH = 25;
     const stagedTargets = [];
@@ -125,7 +123,7 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
     for (let i = 0; i < mediaNodes.length; i += MAX_STAGED_BATCH) {
         const batch = mediaNodes.slice(i, i + MAX_STAGED_BATCH);
         const stagedInputs = batch.map((_, idx) => ({
-            filename: `wm_${Date.now()}_${i + idx}.jpg`,
+            filename: `wm_${Date.now()}_${productId.split('/').pop()}_${i + idx}.jpg`,
             mimeType: 'image/jpeg',
             resource: 'IMAGE',
             httpMethod: 'POST'
@@ -135,55 +133,34 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
         stagedTargets.push(...stagedRes.stagedUploadsCreate.stagedTargets);
     }
 
-    // D. Process images SEQUENTIALLY for ultra-low memory usage (500MB limit safety)
-    const IMAGE_CONCURRENCY = 1;
-    for (let i = 0; i < mediaNodes.length; i += IMAGE_CONCURRENCY) {
-        const batch = mediaNodes.slice(i, i + IMAGE_CONCURRENCY);
+    // C. Process images with streams and timers
+    for (let i = 0; i < mediaNodes.length; i++) {
+        const targetImage = mediaNodes[i];
+        const target = stagedTargets[i];
+        if (!target) continue;
 
-        await Promise.all(batch.map(async (targetImage, batchIdx) => {
-            const index = i + batchIdx;
-            const target = stagedTargets[index];
-            if (!target) return;
+        try {
+            // High-Res Timber starts inside processor.process
+            const { stream, metadata, timings } = await processor.process(targetImage.image.url);
 
-            let imageBuffer = null;
-            try {
-                const result = await applyWatermark(targetImage.image.url, settings, preloadedLogoBuffer);
-                imageBuffer = result.buffer;
-                const imageHash = result.hash;
+            // Upload Stream
+            const uploadRes = await uploadToShopify(target, stream, 'image/jpeg', `wm_${i}.jpg`);
 
-                // Upload directly to Shopify's bucket
-                const formData = new FormData();
-                target.parameters.forEach(p => formData.append(p.name, p.value));
-                formData.append('file', new Blob([imageBuffer], { type: 'image/jpeg' }), target.parameters.find(p => p.name === 'key')?.value || 'file.jpg');
+            timings.upload_ms = uploadRes.upload_ms;
+            const totalEnd = process.hrtime(timings.total_start);
+            timings.total_ms = (totalEnd[0] * 1000 + totalEnd[1] / 1000000).toFixed(2);
 
-                await axios.post(target.url, formData, { timeout: 60000 });
+            console.log(`[Worker] Image Processed: ${productName} | Size: ${metadata.input_size}b -> ? | Timings: DL:${timings.download_ms}ms, SH:${timings.sharp_ms}ms, UP:${timings.upload_ms}ms, Total:${timings.total_ms}ms`);
 
-                // Track which variants use this specific image
-                const associatedVariantIds = variants
-                    .filter(v => v.image?.id === targetImage.image?.id)
-                    .map(v => v.id);
-
-                processedItems.push({
-                    originalMediaId: targetImage.id,
-                    originalUrl: targetImage.image.url,
-                    resourceUrl: target.resourceUrl,
-                    hash: imageHash,
-                    index,
-                    variantIds: associatedVariantIds
-                });
-
-                // 🗑️ Explicitly cleanup large buffer
-                imageBuffer = null;
-            } catch (err) {
-                console.error(`[Worker] Image ${index} in ${productId} failed:`, err.message);
-            } finally {
-                imageBuffer = null;
-            }
-        }));
-
-        // Manual cleanup hint for GC every 2 images
-        if (i % 2 === 0 && global.gc) {
-            global.gc();
+            processedItems.push({
+                originalMediaId: targetImage.id,
+                originalUrl: targetImage.image.url,
+                resourceUrl: target.resourceUrl,
+                index: i,
+                variantIds: variants.filter(v => v.image?.id === targetImage.image?.id).map(v => v.id)
+            });
+        } catch (err) {
+            console.error(`[Worker] Image ${i} in ${productId} failed:`, err.message);
         }
     }
 

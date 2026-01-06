@@ -1,10 +1,13 @@
 import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis.js';
+import pool from '../db/index.js';
 import { QUEUE_NAMES, JOB_STATUS, JOB_TYPE, ROLLBACK_STATUS } from '../constants/watermark.js';
 import {
     createWatermarkJob,
     updateJobStatus,
-    completeJob
+    completeJob,
+    incrementProcessedProducts,
+    setTotalProducts
 } from '../db/repositories/watermarkJobsRepository.js';
 import {
     getJobItemsForRollback,
@@ -52,6 +55,14 @@ export const rollbackWorker = new Worker(
             const rollbackRun = await createRollbackRun(originalJobId, shop, items.length);
             await startRollbackRun(rollbackRun.id);
 
+            // 🌟 Important: Setup main job progress for rollback tracking
+            // Reset processed to 0 and set total to current rollback count
+            await setTotalProducts(originalJobId, items.length);
+            await updateJobStatus(originalJobId, JOB_STATUS.PROCESSING);
+
+            // Reset processed_products specifically for this run
+            await pool.query('UPDATE watermark_jobs SET processed_products = 0 WHERE id = $1', [originalJobId]);
+
             // 3. Process each item (Undo changes)
             for (const item of items) {
                 try {
@@ -72,59 +83,76 @@ export const rollbackWorker = new Worker(
                             if (createRes.productCreateMedia?.media?.length > 0) {
                                 restoredMediaId = createRes.productCreateMedia.media[0].id;
                                 console.log(`[RollbackWorker] Restored original image for product ${item.product_id}`);
+                            } else {
+                                const errors = createRes.productCreateMedia?.mediaUserErrors || [];
+                                console.error(`[RollbackWorker] Failed to restore media for product ${item.product_id}: ${JSON.stringify(errors)}`);
                             }
                         } catch (createErr) {
-                            console.warn(`[RollbackWorker] Failed to restore original media from URL:`, createErr.message);
+                            console.warn(`[RollbackWorker] Failed to restore original media from URL (${item.original_media_url}):`, createErr.message);
                         }
                     }
 
                     // B. Update variants to use restored original ID
-                    if (restoredMediaId && item.variant_ids && item.variant_ids.length > 0) {
-                        try {
-                            const variantUpdates = item.variant_ids.map(vId => ({
-                                id: vId,
-                                mediaId: restoredMediaId
-                            }));
+                    if (restoredMediaId) {
+                        if (item.variant_ids && item.variant_ids.length > 0) {
+                            try {
+                                const variantUpdates = item.variant_ids.map(vId => ({
+                                    id: vId,
+                                    mediaId: restoredMediaId
+                                }));
 
-                            await graphqlRequest(shop, accessToken, PRODUCT_VARIANTS_BULK_UPDATE, {
-                                productId: item.product_id,
-                                variants: variantUpdates
-                            });
-                        } catch (varErr) {
-                            console.warn(`[RollbackWorker] Failed to update variants during rollback:`, varErr.message);
+                                await graphqlRequest(shop, accessToken, PRODUCT_VARIANTS_BULK_UPDATE, {
+                                    productId: item.product_id,
+                                    variants: variantUpdates
+                                });
+                                console.log(`[RollbackWorker] Updated ${item.variant_ids.length} variants for product ${item.product_id}`);
+                            } catch (varErr) {
+                                console.warn(`[RollbackWorker] Failed to update variants during rollback:`, varErr.message);
+                            }
                         }
-                    }
 
-                    // C. Delete the watermarked media from Shopify
-                    if (item.new_media_id) {
-                        const deleteRes = await graphqlRequest(shop, accessToken, PRODUCT_DELETE_MEDIA, {
-                            productId: item.product_id,
-                            mediaIds: [item.new_media_id]
-                        });
+                        // C. Delete the watermarked media from Shopify (ONLY IF RESTORED)
+                        if (item.new_media_id) {
+                            try {
+                                const deleteRes = await graphqlRequest(shop, accessToken, PRODUCT_DELETE_MEDIA, {
+                                    productId: item.product_id,
+                                    mediaIds: [item.new_media_id]
+                                });
 
-                        if (deleteRes.productDeleteMedia.mediaUserErrors.length > 0) {
-                            console.warn(`[RollbackWorker] Error deleting media ${item.new_media_id}:`, deleteRes.productDeleteMedia.mediaUserErrors[0].message);
+                                if (deleteRes.productDeleteMedia.mediaUserErrors.length > 0) {
+                                    console.warn(`[RollbackWorker] Error deleting media ${item.new_media_id}:`, deleteRes.productDeleteMedia.mediaUserErrors[0].message);
+                                } else {
+                                    console.log(`[RollbackWorker] Deleted watermarked image ${item.new_media_id}`);
+                                }
+                            } catch (delErr) {
+                                console.warn(`[RollbackWorker] Failed to delete watermarked media:`, delErr.message);
+                            }
                         }
-                    }
 
-                    // D. Restore original featured status if it was featured
-                    if (restoredMediaId && item.original_position === 1) {
-                        try {
-                            await graphqlRequest(shop, accessToken, PRODUCT_REORDER_MEDIA, {
-                                id: item.product_id,
-                                moves: [{
-                                    id: restoredMediaId,
-                                    newPosition: "0" // Restore to featured position
-                                }]
-                            });
-                        } catch (reorderError) {
-                            console.warn(`[RollbackWorker] Reorder fail (non-fatal) for ${item.product_id}:`, reorderError.message);
+                        // D. Restore original featured status if it was featured
+                        if (item.original_position === 1) {
+                            try {
+                                await graphqlRequest(shop, accessToken, PRODUCT_REORDER_MEDIA, {
+                                    id: item.product_id,
+                                    moves: [{
+                                        id: restoredMediaId,
+                                        newPosition: "0" // Restore to featured position
+                                    }]
+                                });
+                            } catch (reorderError) {
+                                console.warn(`[RollbackWorker] Reorder fail (non-fatal) for ${item.product_id}:`, reorderError.message);
+                            }
                         }
-                    }
 
-                    // C. Mark as rolled back in DB
-                    await markJobItemRolledBack(item.id);
-                    await incrementRolledBackItems(rollbackRun.id);
+                        // E. Mark as rolled back in DB
+                        await markJobItemRolledBack(item.id);
+                        await incrementRolledBackItems(rollbackRun.id);
+
+                        // 📊 Update the main job's processed count so the Dashboard progress bar moves!
+                        await incrementProcessedProducts(originalJobId);
+                    } else {
+                        console.error(`[RollbackWorker] Skipping deletion of watermarked image for item ${item.id} because original restoration failed.`);
+                    }
 
                 } catch (itemError) {
                     console.error(`[RollbackWorker] Failed to rollback item ${item.id}:`, itemError.message);

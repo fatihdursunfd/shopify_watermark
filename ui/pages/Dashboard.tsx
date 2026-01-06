@@ -51,6 +51,9 @@ export function Dashboard() {
   const [collections, setCollections] = useState<any[]>([]);
   const [selectedCollection, setSelectedCollection] = useState('');
   const [creatingJob, setCreatingJob] = useState(false);
+  const [isRollbackModalOpen, setIsRollbackModalOpen] = useState(false);
+  const [selectedJobForRollback, setSelectedJobForRollback] = useState<string | null>(null);
+  const [isRollingBack, setIsRollingBack] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -116,6 +119,28 @@ export function Dashboard() {
     }
   };
 
+  const handleRollbackConfirm = async () => {
+    if (!selectedJobForRollback) return;
+    setIsRollingBack(true);
+    try {
+      const data = await api.rollbackJob(selectedJobForRollback);
+      if (data.success) {
+        setIsRollbackModalOpen(false);
+        setSelectedJobForRollback(null);
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Rollback failed:', error);
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
+
+  const openRollbackModal = (jobId: string) => {
+    setSelectedJobForRollback(jobId);
+    setIsRollbackModalOpen(true);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed': return <Badge tone="success">Completed</Badge>;
@@ -157,7 +182,7 @@ export function Dashboard() {
           variant="tertiary"
           icon={UndoIcon}
           disabled={job.status !== 'completed'}
-          onClick={() => api.rollbackJob(job.id)}
+          onClick={() => openRollbackModal(job.id)}
         >
           Rollback
         </Button>
@@ -413,6 +438,36 @@ export function Dashboard() {
               </Box>
             </BlockStack>
           )}
+        </Modal.Section>
+      </Modal>
+
+      <Modal
+        open={isRollbackModalOpen}
+        onClose={() => setIsRollbackModalOpen(false)}
+        title="Confirm Rollback"
+        primaryAction={{
+          content: 'Yes, Rollback',
+          onAction: handleRollbackConfirm,
+          loading: isRollingBack,
+          destructive: true
+        }}
+        secondaryActions={[
+          {
+            content: 'Cancel',
+            onAction: () => setIsRollbackModalOpen(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="400">
+            <Banner tone="warning">
+              <p>This will attempt to restore the original images for this job. Filigranlı resimler kaldırılacaktır.</p>
+            </Banner>
+            <Text variant="bodyMd" as="p">
+              Are you sure you want to rollback job <b>#{selectedJobForRollback?.slice(0, 8)}</b>?
+              Bu işlem geri alınamaz ancak orijinal resimleriniz tekrar mağazanıza yüklenmeye çalışılacaktır.
+            </Text>
+          </BlockStack>
         </Modal.Section>
       </Modal>
     </Page>
