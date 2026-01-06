@@ -185,8 +185,13 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
             }))
         });
 
+        if (createRes.productCreateMedia?.mediaUserErrors?.length > 0) {
+            console.error(`[Worker] Shopify MediaCreate Error for ${productId}:`, JSON.stringify(createRes.productCreateMedia.mediaUserErrors));
+        }
+
         if (createRes.productCreateMedia?.media) {
             newMediaNodes.push(...createRes.productCreateMedia.media);
+            console.log(`[Worker] Successfully created ${createRes.productCreateMedia.media.length} media items on Shopify for ${productId}`);
         }
     }
 

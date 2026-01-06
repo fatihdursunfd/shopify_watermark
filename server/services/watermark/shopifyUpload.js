@@ -57,9 +57,6 @@ export async function uploadToShopify(target, stream, mimeType, filename) {
         // I'll use 'axios' with the stream as the body if I can get away with it, 
         // but I must handle the multipart boundaries.
 
-        // Let's try to use the most memory-efficient way with standard axios.
-
-        // Use the 'form-data' package for true streaming multipart in Node.js
         const fd = new FormData();
 
         // Shopify/S3 requires parameters to come BEFORE the file
@@ -73,14 +70,16 @@ export async function uploadToShopify(target, stream, mimeType, filename) {
             contentType: mimeType
         });
 
-        const config = {
+        console.log(`[ShopifyUpload] Beginning axios POST to ${target.url.split('?')[0]}...`);
+
+        const response = await axios.post(target.url, fd, {
             timeout: 120000,
             headers: {
                 ...fd.getHeaders()
-            }
-        };
-
-        const response = await axios.post(target.url, fd, config);
+            },
+            maxBodyLength: Infinity,
+            maxContentLength: Infinity
+        });
 
         if (response.status >= 200 && response.status < 300) {
             console.log(`[ShopifyUpload] Successfully uploaded to Cloud Storage (Status: ${response.status})`);
@@ -92,7 +91,9 @@ export async function uploadToShopify(target, stream, mimeType, filename) {
             upload_ms: Date.now() - startTime
         };
     } catch (error) {
-        console.error(`[ShopifyUpload] Upload failed:`, error.response?.data || error.message);
+        const errorData = error.response?.data;
+        const errorMessage = typeof errorData === 'string' ? errorData : JSON.stringify(errorData);
+        console.error(`[ShopifyUpload] Upload failed (HTTP ${error.response?.status}):`, errorMessage || error.message);
         throw error;
     }
 }

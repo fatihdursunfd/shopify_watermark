@@ -49,23 +49,25 @@ export class WatermarkProcessor {
 
         const inputSize = parseInt(response.headers['content-length'] || 0);
 
-        // 2. Setup Sharp Metadata Probe
+        // 2. Fetch Metadata via Range Request (Fast & Stream-safe)
         const sharpStart = process.hrtime();
 
-        // Fork the stream: s1 for metadata probe, s2 for processing
-        const s1 = new PassThrough();
-        const s2 = new PassThrough();
-        response.data.pipe(s1);
-        response.data.pipe(s2);
-
-        // Probe metadata from s1 fork
-        const probeResult = await new Promise((resolve, reject) => {
-            const probe = sharp();
-            probe.metadata().then(resolve).catch(reject);
-            s1.pipe(probe);
+        // We fetch the first 128KB which contains metadata for almost all images (JPEG/PNG/WebP)
+        const headResponse = await axios({
+            url: imageUrl,
+            method: 'GET',
+            headers: { 'Range': 'bytes=0-131071' },
+            responseType: 'arraybuffer',
+            timeout: 10000
+        }).catch(err => {
+            console.warn(`[Processor] Range request failed, falling back to full metadata probe: ${err.message}`);
+            return axios.get(imageUrl, { responseType: 'arraybuffer' }); // Fallback to full download if Range fails
         });
 
+        const probeResult = await sharp(Buffer.from(headResponse.data)).metadata();
+        console.log(`[Processor] Detected ${probeResult.format} (${probeResult.width}x${probeResult.height}) for ${imageUrl.split('?')[0].split('/').pop()}`);
         const compositeLayers = await this._prepareLayers(probeResult);
+        console.log(`[Processor] Applying ${compositeLayers.length} watermark layers`);
 
         // Configure output format to match input (or default to JPEG)
         const format = probeResult.format || 'jpeg';
@@ -73,8 +75,8 @@ export class WatermarkProcessor {
         // 3. Setup Processing Pipeline
         const pipeline = sharp({ sequentialRead: true, failOnError: false });
 
-        // Pipe the untouched fork into the processor
-        const processedStream = s2.pipe(pipeline.composite(compositeLayers));
+        // Pipe the original stream directly into the processor
+        const processedStream = response.data.pipe(pipeline.composite(compositeLayers));
 
         if (format === 'png') {
             processedStream.png({ compressionLevel: 9 });
@@ -138,10 +140,12 @@ export class WatermarkProcessor {
                 this.settings.use_custom_placement ? { x: this.settings.logo_x, y: this.settings.logo_y } : null
             );
 
+            console.log(`[Processor] Logo Position: ${coords.x},${coords.y} | Size: ${finalLogoMeta.width}x${finalLogoMeta.height}`);
+
             layers.push({
                 input: processedLogo,
-                top: Math.floor(coords.y),
-                left: Math.floor(coords.x)
+                top: Math.max(0, Math.floor(coords.y)),
+                left: Math.max(0, Math.floor(coords.x))
             });
         }
 
