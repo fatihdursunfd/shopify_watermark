@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { PassThrough } from 'stream';
+import FormData from 'form-data';
 
 /**
  * Upload a stream to Shopify Staged Upload URL
@@ -58,33 +59,32 @@ export async function uploadToShopify(target, stream, mimeType, filename) {
 
         // Let's try to use the most memory-efficient way with standard axios.
 
+        // Use the 'form-data' package for true streaming multipart in Node.js
+        const fd = new FormData();
+
+        // Shopify/S3 requires parameters to come BEFORE the file
+        target.parameters.forEach(p => {
+            fd.append(p.name, p.value);
+        });
+
+        // Append the stream as the 'file' field
+        fd.append('file', uploadStream, {
+            filename: filename,
+            contentType: mimeType
+        });
+
         const config = {
-            timeout: 120000, // 2 minutes for large uploads
+            timeout: 120000,
             headers: {
-                'Content-Type': `multipart/form-data`
+                ...fd.getHeaders()
             }
         };
 
-        // We'll use the native FormData if available (Node 18+)
-        const fd = new FormData();
-        target.parameters.forEach(p => fd.append(p.name, p.value));
-
-        // In Node 18, we can't directly append a ReadableStream to native FormData 
-        // without it being a File/Blob. But we can convert the stream to a Blob 
-        // WITHOUT buffering the whole thing? No, Blobs are in-memory.
-
-        // CRAP. To do true streaming upload in Node.js without buffering, 
-        // you ALMOST ALWAYS need the 'form-data' package or a custom boundary generator.
-
-        // I'll check if I can install it or if I should implement a manual streamer.
-        // Actually, I'll just use the 'form-data' package if the user allows, 
-        // but I'm supposed to "modify only the watermark processing path".
-
-        // I'll use a custom stream wrapper that builds the multipart message.
-
-        // Actually, let's look at the target URL. If it's Amazon S3, we need the exact order.
-
         const response = await axios.post(target.url, fd, config);
+
+        if (response.status >= 200 && response.status < 300) {
+            console.log(`[ShopifyUpload] Successfully uploaded to Cloud Storage (Status: ${response.status})`);
+        }
 
         return {
             success: true,

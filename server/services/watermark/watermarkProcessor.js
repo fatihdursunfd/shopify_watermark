@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import axios from 'axios';
+import { PassThrough } from 'stream';
 import { getPositionCoordinates, shouldUseMobileProfile } from '../../constants/watermark.js';
 
 /**
@@ -48,31 +49,32 @@ export class WatermarkProcessor {
 
         const inputSize = parseInt(response.headers['content-length'] || 0);
 
-        // 2. Setup Sharp with sequentialRead for memory efficiency
+        // 2. Setup Sharp Metadata Probe
         const sharpStart = process.hrtime();
 
-        // We need metadata for coordinates. Sharp can get this from the stream.
-        // To avoid consuming the stream, we use a PassThrough fork or a simpler approach:
-        // Use a clone or just use the fact that many formats have metadata at the start.
+        // Fork the stream: s1 for metadata probe, s2 for processing
+        const s1 = new PassThrough();
+        const s2 = new PassThrough();
+        response.data.pipe(s1);
+        response.data.pipe(s2);
 
-        // Optimization: Create a pipeline that emits metadata
-        const pipeline = sharp({ sequentialRead: true, failOnError: false });
+        // Probe metadata from s1 fork
+        const probeResult = await new Promise((resolve, reject) => {
+            const probe = sharp();
+            probe.metadata().then(resolve).catch(reject);
+            s1.pipe(probe);
+        });
 
-        // Setup composition layers
-        const metadata = await sharp(imageUrl.split('?')[0]).metadata(); // Fast probe if possible, but let's be robust
-        // Actually, if we use the stream, we MUST wait for the 'info' event or metadata() call.
-
-        // Let's use a small buffer for the header to get metadata (first 64KB is usually enough)
-        // For simplicity and speed in this refactor, we'll use one metadata call and one stream.
-
-        const compositeLayers = await this._prepareLayers(metadata);
+        const compositeLayers = await this._prepareLayers(probeResult);
 
         // Configure output format to match input (or default to JPEG)
-        // Keep original format logic
-        const format = metadata.format || 'jpeg';
+        const format = probeResult.format || 'jpeg';
 
-        // Pipe download into processor
-        const processedStream = response.data.pipe(pipeline.composite(compositeLayers));
+        // 3. Setup Processing Pipeline
+        const pipeline = sharp({ sequentialRead: true, failOnError: false });
+
+        // Pipe the untouched fork into the processor
+        const processedStream = s2.pipe(pipeline.composite(compositeLayers));
 
         if (format === 'png') {
             processedStream.png({ compressionLevel: 9 });
@@ -88,9 +90,9 @@ export class WatermarkProcessor {
         return {
             stream: processedStream,
             metadata: {
-                width: metadata.width,
-                height: metadata.height,
-                format: metadata.format,
+                width: probeResult.width,
+                height: probeResult.height,
+                format: probeResult.format,
                 input_size: inputSize
             },
             timings
