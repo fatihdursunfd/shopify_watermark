@@ -15,7 +15,8 @@ import {
     PRODUCT_REORDER_MEDIA,
     PRODUCT_DELETE_MEDIA,
     PRODUCT_VARIANTS_BULK_UPDATE,
-    STAGED_UPLOADS_CREATE
+    STAGED_UPLOADS_CREATE,
+    FILE_CREATE
 } from '../graphql/watermark-queries.js';
 import { getShopToken } from '../db/repositories/shopRepository.js';
 import { graphqlRequest } from '../utils/shopify-client.js';
@@ -143,7 +144,19 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
             // High-Res Timber starts inside processor.process
             const { stream, metadata, timings } = await processor.process(targetImage.image.url);
 
-            // Upload Stream
+            // --- ARCHIVE ORIGINAL TO STORE FILES (Literal "mağaza medyasında kalmalı") ---
+            // This ensures the original URL is permanent even if we delete from product
+            console.log(`[Worker] Archiving original image to Store Files for ${productId}...`);
+            const archiveRes = await graphqlRequest(shop, accessToken, FILE_CREATE, {
+                files: [{
+                    originalSource: targetImage.image.url,
+                    contentType: 'IMAGE',
+                    alt: `Original Backup: ${productName}`
+                }]
+            });
+            const archivedUrl = archiveRes.fileCreate?.files?.[0]?.image?.url || targetImage.image.url;
+
+            // Upload Watermarked Stream
             const uploadRes = await uploadToShopify(target, stream, 'image/jpeg', `wm_${i}.jpg`);
 
             timings.upload_ms = uploadRes.upload_ms;
@@ -154,7 +167,7 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
 
             processedItems.push({
                 originalMediaId: targetImage.id,
-                originalUrl: targetImage.image.url,
+                originalUrl: archivedUrl, // Store the permanent archived URL
                 resourceUrl: target.resourceUrl,
                 index: i,
                 variantIds: variants.filter(v => v.image?.id === targetImage.image?.id).map(v => v.id)
