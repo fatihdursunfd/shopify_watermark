@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis.js';
+import pool from '../db/index.js';
 import { QUEUE_NAMES, JOB_STATUS, JOB_ITEM_STATUS, SCOPE_TYPE } from '../constants/watermark.js';
 import { startJob, completeJob, incrementProcessedProducts, incrementFailedProducts, getWatermarkJob, setTotalProducts } from '../db/repositories/watermarkJobsRepository.js';
 import { createJobItem, markJobItemCompleted, markJobItemFailed } from '../db/repositories/watermarkJobItemsRepository.js';
@@ -144,17 +145,42 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
             // High-Res Timber starts inside processor.process
             const { stream, metadata, timings } = await processor.process(targetImage.image.url);
 
-            // --- ARCHIVE ORIGINAL TO STORE FILES (Literal "mağaza medyasında kalmalı") ---
-            // This ensures the original URL is permanent even if we delete from product
-            console.log(`[Worker] Archiving original image to Store Files for ${productId}...`);
-            const archiveRes = await graphqlRequest(shop, accessToken, FILE_CREATE, {
-                files: [{
-                    originalSource: targetImage.image.url,
-                    contentType: 'IMAGE',
-                    alt: `Original Backup: ${productName}`
-                }]
-            });
-            const archivedUrl = archiveRes.fileCreate?.files?.[0]?.image?.url || targetImage.image.url;
+            // --- ARCHIVE & DUPLICATE CHECK ("mağaza medyasında kalmalı") ---
+            let archivedUrl = targetImage.image.url;
+            const isAlreadyFile = archivedUrl.includes('/files/');
+
+            if (!isAlreadyFile) {
+                // Check if we already archived this SPECIFIC media ID in a previous job
+                try {
+                    const { rows } = await pool.query(`
+                        SELECT i.original_media_url
+                        FROM watermark_job_items i
+                        JOIN watermark_jobs j ON i.job_id = j.id
+                        WHERE j.shop = $1 AND i.original_media_id = $2
+                          AND i.original_media_url LIKE '%/files/%'
+                          AND i.status = 'completed'
+                        LIMIT 1
+                    `, [shop, targetImage.id]);
+
+                    if (rows.length > 0) {
+                        archivedUrl = rows[0].original_media_url;
+                        console.log(`[Worker] Found existing archive for ${targetImage.id}: ${archivedUrl}`);
+                    } else {
+                        // Truly new, archive it
+                        console.log(`[Worker] Archiving original image to Store Files for ${productId}...`);
+                        const archiveRes = await graphqlRequest(shop, accessToken, FILE_CREATE, {
+                            files: [{
+                                originalSource: targetImage.image.url.split('?')[0],
+                                contentType: 'IMAGE',
+                                alt: `Original Backup: ${productName}`
+                            }]
+                        });
+                        archivedUrl = archiveRes.fileCreate?.files?.[0]?.image?.url || targetImage.image.url;
+                    }
+                } catch (dbErr) {
+                    console.warn(`[Worker] Archive lookup failed, defaulting to direct archive:`, dbErr.message);
+                }
+            }
 
             // Upload Watermarked Stream
             const uploadRes = await uploadToShopify(target, stream, 'image/jpeg', `wm_${i}.jpg`);

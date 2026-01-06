@@ -126,8 +126,11 @@ export const rollbackWorker = new Worker(
                             console.warn(`[RollbackWorker] Reorder fail (non-fatal) for ${item.product_id}:`, reorderError.message);
                         }
 
-                        // D. Delete the watermarked media from Shopify
-                        if (item.new_media_id) {
+                        // --- SAFETY: WAIT FOR SHOPIFY TO PROCESS THE NEW MEDIA ---
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+
+                        // D. Delete the watermarked media from Shopify (ONLY IF RESTORED)
+                        if (item.new_media_id && restoredMediaId) {
                             try {
                                 const deleteRes = await graphqlRequest(shop, accessToken, PRODUCT_DELETE_MEDIA, {
                                     productId: item.product_id,
