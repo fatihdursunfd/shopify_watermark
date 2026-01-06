@@ -40,10 +40,12 @@ export const watermarkWorker = new Worker(
             await startJob(jobId);
             const productIds = await resolveProductIds(shop, accessToken, scope_type, scope_value);
 
+            console.log(`[Worker] Resolved ${productIds.length} products for job ${jobId}`);
+
             // 📊 Update total products count once we know it
             await setTotalProducts(jobId, productIds.length);
 
-            console.log(`[Worker] Processing ${productIds.length} products`);
+            console.log(`[Worker] Processing ${productIds.length} products for ${shop}`);
 
             for (const productId of productIds) {
                 try {

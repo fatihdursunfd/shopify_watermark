@@ -17,7 +17,8 @@ import {
   RadioButton,
   Select,
   List,
-  Spinner
+  Spinner,
+  ProgressBar
 } from '@shopify/polaris';
 import {
   CheckCircleIcon,
@@ -54,12 +55,12 @@ export function Dashboard() {
   const fetchData = useCallback(async () => {
     try {
       const data = await api.getJobs(10, 0);
-      if (data.success) {
+      if (data.success && Array.isArray(data.jobs)) {
         setJobs(data.jobs);
 
         const active = data.jobs.filter((j: any) => j.status === 'processing' || j.status === 'pending').length;
         const failed = data.jobs.filter((j: any) => j.status === 'failed').length;
-        const total = data.jobs.reduce((acc: number, j: any) => acc + (j.processed_products || 0), 0);
+        const total = data.jobs.reduce((acc: number, j: any) => acc + (Number(j.processed_products) || 0), 0);
 
         setStats({
           activeJobs: active,
@@ -85,7 +86,7 @@ export function Dashboard() {
     try {
       const data = await api.getCollections();
       if (data.success) {
-        setCollections(data.collections.map(c => ({ label: c.title, value: c.id })));
+        setCollections(data.collections.map(c => ({ label: c.title, value: c.id, count: c.count })));
       }
     } catch (e) {
       console.error('Failed to load collections', e);
@@ -126,36 +127,43 @@ export function Dashboard() {
     }
   };
 
-  const rows = jobs.map(job => [
-    <Text variant="bodyMd" fontWeight="bold" as="span">#{job.id.slice(0, 8)}</Text>,
-    job.job_type.toUpperCase(),
-    getStatusBadge(job.status),
-    <Box minWidth="120px" paddingBlockEnd="200">
-      <BlockStack gap="100">
-        <Text variant="bodyMd" as="span" alignment="end">
-          {job.processed_products} / {job.total_products || '...'}
-        </Text>
-        {(job.status === 'processing' || job.status === 'pending') && job.total_products > 0 && (
+  const rows = jobs.map(job => {
+    const total = job.total_products;
+    const processed = job.processed_products || 0;
+    const progress = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : (job.status === 'completed' ? 100 : 0);
+
+    return [
+      <Text variant="bodyMd" fontWeight="bold" as="span">#{job.id.slice(0, 8)}</Text>,
+      job.job_type.toUpperCase(),
+      getStatusBadge(job.status),
+      <Box minWidth="150px" paddingBlockEnd="200" paddingInlineEnd="400">
+        <BlockStack gap="100">
+          <InlineStack align="space-between">
+            <Text variant="bodyMd" as="span" tone="subdued">Progress</Text>
+            <Text variant="bodyMd" fontWeight="bold" as="span">
+              {processed} / {total || (job.status === 'pending' || job.status === 'processing' ? '...' : total)}
+            </Text>
+          </InlineStack>
           <ProgressBar
-            progress={Math.min(100, Math.round((job.processed_products / job.total_products) * 100))}
+            progress={progress}
             size="small"
-            tone="primary"
+            tone={job.status === 'failed' ? 'critical' : (job.status === 'completed' ? 'success' : 'primary')}
           />
-        )}
-      </BlockStack>
-    </Box>,
-    new Date(job.created_at).toLocaleDateString(),
-    <div key={job.id} style={{ display: 'flex', gap: '8px' }}>
-      <Button
-        variant="tertiary"
-        icon={UndoIcon}
-        disabled={job.status !== 'completed'}
-        onClick={() => api.rollbackJob(job.id)}
-      >
-        Rollback
-      </Button>
-    </div>
-  ]);
+        </BlockStack>
+      </Box>,
+      job.created_at ? new Date(job.created_at).toLocaleDateString() : '...',
+      <div key={job.id} style={{ display: 'flex', gap: '8px' }}>
+        <Button
+          variant="tertiary"
+          icon={UndoIcon}
+          disabled={job.status !== 'completed'}
+          onClick={() => api.rollbackJob(job.id)}
+        >
+          Rollback
+        </Button>
+      </div>
+    ];
+  });
 
   if (loading && jobs.length === 0) {
     return (
