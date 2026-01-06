@@ -160,7 +160,7 @@ async function processProduct(shop, accessToken, productId, jobId, settings) {
 
                 // Track which variants use this specific image
                 const associatedVariantIds = variants
-                    .filter(v => v.featuredMedia?.id === targetImage.id)
+                    .filter(v => v.image?.id === targetImage.image?.id)
                     .map(v => v.id);
 
                 processedItems.push({

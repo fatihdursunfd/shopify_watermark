@@ -16,7 +16,7 @@ export const GET_PRODUCT_MEDIA = `
         edges {
           node {
             id
-            featuredMedia {
+            image {
               id
             }
           }
@@ -28,6 +28,7 @@ export const GET_PRODUCT_MEDIA = `
             ... on MediaImage {
               id
               image {
+                id
                 url
                 width
                 height
@@ -176,6 +177,7 @@ export const PRODUCT_CREATE_MEDIA = `
         ... on MediaImage {
           id
           image {
+            id
             url
             width
             height
@@ -241,7 +243,7 @@ export const PRODUCT_VARIANTS_BULK_UPDATE = `
       }
       productVariants {
         id
-        featuredMedia {
+        image {
           id
         }
       }
@@ -326,5 +328,5 @@ export function extractImageUrls(productMediaResponse) {
  * Check if product has featured media
  */
 export function getFeaturedMediaId(productMediaResponse) {
-  return productMediaResponse?.product?.featuredMedia?.id || null;
+  return productMediaResponse?.product?.image?.id || null;
 }
