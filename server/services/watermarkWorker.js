@@ -166,58 +166,60 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
 
     if (processedItems.length === 0) return;
 
-    // E. Create Media on Product in chunks of 10 (Shopify Limit)
-    // This fixes the "only 10 images" issue
-    const newMediaNodes = [];
-    const MEDIA_CREATE_CHUNK = 10;
-
-    // Sort processed items by index to maintain order
-    processedItems.sort((a, b) => a.index - b.index);
-
-    for (let i = 0; i < processedItems.length; i += MEDIA_CREATE_CHUNK) {
-        const chunk = processedItems.slice(i, i + MEDIA_CREATE_CHUNK);
-        const createRes = await graphqlRequest(shop, accessToken, PRODUCT_CREATE_MEDIA, {
-            productId,
-            media: chunk.map(item => ({
-                originalSource: item.resourceUrl,
-                mediaContentType: 'IMAGE',
-                alt: `Watermarked ${productName}`
-            }))
-        });
-
-        if (createRes.productCreateMedia?.mediaUserErrors?.length > 0) {
-            console.error(`[Worker] Shopify MediaCreate Error for ${productId}:`, JSON.stringify(createRes.productCreateMedia.mediaUserErrors));
-        }
-
-        if (createRes.productCreateMedia?.media) {
-            newMediaNodes.push(...createRes.productCreateMedia.media);
-            console.log(`[Worker] Successfully created ${createRes.productCreateMedia.media.length} media items on Shopify for ${productId}`);
-        }
-    }
-
-    // F. Save to DB and Reorder
+    // E & F. Create Media on Product and Save to DB
     const moves = [];
     const variantUpdates = [];
-
+    // We do this sequentially per image within a product to ensure ID alignment is perfect.
     for (let i = 0; i < processedItems.length; i++) {
         const item = processedItems[i];
-        const newMediaId = newMediaNodes[i]?.id;
-        if (!newMediaId) continue;
 
-        // Prepare variant updates
-        if (item.variantIds?.length > 0) {
-            item.variantIds.forEach(vId => {
-                variantUpdates.push({ id: vId, mediaId: newMediaId });
+        try {
+            const createRes = await graphqlRequest(shop, accessToken, PRODUCT_CREATE_MEDIA, {
+                productId,
+                media: [{
+                    originalSource: item.resourceUrl,
+                    mediaContentType: 'IMAGE',
+                    alt: `Watermarked ${productName}`
+                }]
             });
-        }
 
-        const jobItem = await createJobItem(
-            jobId, productId, productName, item.originalMediaId,
-            item.originalUrl, item.index + 1, item.index === 0, item.hash,
-            item.variantIds
-        );
-        await markJobItemCompleted(jobItem.id, newMediaId, item.resourceUrl);
-        moves.push({ id: newMediaId, newPosition: i.toString() });
+            const errors = createRes.productCreateMedia?.mediaUserErrors || [];
+            if (errors.length > 0) {
+                console.error(`[Worker] Shopify MediaCreate Error for ${productId} (Index ${item.index}):`, JSON.stringify(errors));
+                continue;
+            }
+
+            const newMedia = createRes.productCreateMedia?.media?.[0];
+            const newMediaId = newMedia?.id;
+
+            if (!newMediaId) {
+                console.error(`[Worker] Failed to get new media ID for ${productId} (Index ${item.index})`);
+                continue;
+            }
+
+            console.log(`[Worker] Created new media ${newMediaId} for product ${productId}`);
+
+            // Prepare variant updates
+            if (item.variantIds?.length > 0) {
+                item.variantIds.forEach(vId => {
+                    variantUpdates.push({ id: vId, mediaId: newMediaId });
+                });
+            }
+
+            // Save to Database
+            const jobItem = await createJobItem(
+                jobId, productId, productName, item.originalMediaId,
+                item.originalUrl, item.index + 1, item.index === 0, 'STREAM_PROCESSED',
+                item.variantIds
+            );
+            await markJobItemCompleted(jobItem.id, newMediaId, item.resourceUrl);
+
+            // Add to move list for reordering
+            moves.push({ id: newMediaId, newPosition: item.index.toString() });
+
+        } catch (err) {
+            console.error(`[Worker] Media creation/DB save failed for ${productId} (Index ${item.index}):`, err.message);
+        }
     }
 
     // G. Assign new media to variants if needed

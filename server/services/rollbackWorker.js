@@ -111,7 +111,22 @@ export const rollbackWorker = new Worker(
                             }
                         }
 
-                        // C. Delete the watermarked media from Shopify (ONLY IF RESTORED)
+                        // C. Reorder restored image to its original position
+                        try {
+                            const newPos = (item.original_position - 1).toString();
+                            await graphqlRequest(shop, accessToken, PRODUCT_REORDER_MEDIA, {
+                                id: item.product_id,
+                                moves: [{
+                                    id: restoredMediaId,
+                                    newPosition: newPos
+                                }]
+                            });
+                            console.log(`[RollbackWorker] Reordered restored image to position ${newPos} for ${item.product_id}`);
+                        } catch (reorderError) {
+                            console.warn(`[RollbackWorker] Reorder fail (non-fatal) for ${item.product_id}:`, reorderError.message);
+                        }
+
+                        // D. Delete the watermarked media from Shopify
                         if (item.new_media_id) {
                             try {
                                 const deleteRes = await graphqlRequest(shop, accessToken, PRODUCT_DELETE_MEDIA, {
@@ -120,27 +135,12 @@ export const rollbackWorker = new Worker(
                                 });
 
                                 if (deleteRes.productDeleteMedia.mediaUserErrors.length > 0) {
-                                    console.warn(`[RollbackWorker] Error deleting media ${item.new_media_id}:`, deleteRes.productDeleteMedia.mediaUserErrors[0].message);
+                                    console.warn(`[RollbackWorker] Could not delete watermarked media ${item.new_media_id} for ${item.product_id}:`, deleteRes.productDeleteMedia.mediaUserErrors[0].message);
                                 } else {
-                                    console.log(`[RollbackWorker] Deleted watermarked image ${item.new_media_id}`);
+                                    console.log(`[RollbackWorker] Deleted watermarked image ${item.new_media_id} for ${item.product_id}`);
                                 }
                             } catch (delErr) {
-                                console.warn(`[RollbackWorker] Failed to delete watermarked media:`, delErr.message);
-                            }
-                        }
-
-                        // D. Restore original featured status if it was featured
-                        if (item.original_position === 1) {
-                            try {
-                                await graphqlRequest(shop, accessToken, PRODUCT_REORDER_MEDIA, {
-                                    id: item.product_id,
-                                    moves: [{
-                                        id: restoredMediaId,
-                                        newPosition: "0" // Restore to featured position
-                                    }]
-                                });
-                            } catch (reorderError) {
-                                console.warn(`[RollbackWorker] Reorder fail (non-fatal) for ${item.product_id}:`, reorderError.message);
+                                console.warn(`[RollbackWorker] Failed to delete watermarked media ${item.new_media_id}:`, delErr.message);
                             }
                         }
 
