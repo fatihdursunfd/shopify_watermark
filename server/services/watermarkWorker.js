@@ -14,11 +14,11 @@ import {
     GET_PRODUCTS_BY_COLLECTION,
     PRODUCT_CREATE_MEDIA,
     PRODUCT_REORDER_MEDIA,
-    PRODUCT_DELETE_MEDIA,
     PRODUCT_VARIANTS_BULK_UPDATE,
     STAGED_UPLOADS_CREATE,
     FILE_CREATE
 } from '../graphql/watermark-queries.js';
+import { resolveFileIdFromMaybeMediaId, detachFileFromProduct } from './mediaService.js';
 import { getShopToken } from '../db/repositories/shopRepository.js';
 import { graphqlRequest } from '../utils/shopify-client.js';
 import axios from 'axios';
@@ -290,17 +290,21 @@ async function processProduct(shop, accessToken, productId, jobId, processor) {
         });
     }
 
-    // I. DELETE ORIGINAL MEDIA (As requested by user: "koparsak")
+    // I. DETACH ORIGINAL MEDIA (Do not delete, just remove reference)
     const originalMediaIds = processedItems.map(item => item.originalMediaId).filter(id => id);
     if (originalMediaIds.length > 0) {
-        try {
-            await graphqlRequest(shop, accessToken, PRODUCT_DELETE_MEDIA, {
-                productId,
-                mediaIds: originalMediaIds
-            });
-            console.log(`[Worker] Deleted ${originalMediaIds.length} original images for ${productId}`);
-        } catch (delErr) {
-            console.warn(`[Worker] Cleanup fail for ${productId}:`, delErr.message);
+        // We do this concurrently or sequentially? Sequentially is safer for rate limits.
+        for (const originalId of originalMediaIds) {
+            try {
+                // Must ensure we have a File ID
+                const fileId = await resolveFileIdFromMaybeMediaId(shop, accessToken, originalId);
+                if (fileId) {
+                    await detachFileFromProduct(shop, accessToken, fileId, productId);
+                    console.log(`[Worker] Detached original media ${originalId} (File ${fileId}) from ${productId}`);
+                }
+            } catch (detachErr) {
+                console.warn(`[Worker] Failed to detach original media ${originalId}:`, detachErr.message);
+            }
         }
     }
 }

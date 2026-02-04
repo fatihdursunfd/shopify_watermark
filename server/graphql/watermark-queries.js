@@ -27,6 +27,9 @@ export const GET_PRODUCT_MEDIA = `
           node {
             ... on MediaImage {
               id
+              file {
+                id
+              }
               image {
                 id
                 url
@@ -354,6 +357,34 @@ export const GET_FILE_URL = `
       ... on MediaImage {
         image {
           url
+        }
+      }
+    }
+  }
+`;
+
+export const FILE_UPDATE = `
+  mutation fileUpdate($files: [FileUpdateInput!]!) {
+    fileUpdate(files: $files) {
+      files {
+        id
+        fileStatus
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+export const GET_FILE_ID_FROM_MEDIA = `
+  query getFileIdFromMedia($id: ID!) {
+    node(id: $id) {
+       ... on MediaImage {
+        id
+        file {
+          id
         }
       }
     }
