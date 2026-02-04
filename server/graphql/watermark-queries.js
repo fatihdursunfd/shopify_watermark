@@ -27,9 +27,6 @@ export const GET_PRODUCT_MEDIA = `
           node {
             ... on MediaImage {
               id
-              file {
-                id
-              }
               image {
                 id
                 url
@@ -383,9 +380,6 @@ export const GET_FILE_ID_FROM_MEDIA = `
     node(id: $id) {
        ... on MediaImage {
         id
-        file {
-          id
-        }
       }
     }
   }
