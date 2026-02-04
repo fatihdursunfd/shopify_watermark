@@ -330,3 +330,32 @@ export function extractImageUrls(productMediaResponse) {
 export function getFeaturedMediaId(productMediaResponse) {
   return productMediaResponse?.product?.image?.id || null;
 }
+
+export const GET_MEDIA_STATUS = `
+  query getMediaStatus($id: ID!) {
+    node(id: $id) {
+      ... on MediaImage {
+        id
+        status
+        image {
+          url
+        }
+      }
+    }
+  }
+`;
+
+export const GET_FILE_URL = `
+  query getFileUrl($id: ID!) {
+    node(id: $id) {
+      ... on GenericFile {
+        url
+      }
+      ... on MediaImage {
+        image {
+          url
+        }
+      }
+    }
+  }
+`;
